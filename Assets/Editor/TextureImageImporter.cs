@@ -5,17 +5,19 @@ using System.IO;
 public class TextureImageImporter : AssetPostprocessor
 {
 	static readonly string[] targetExtensions = { ".tga" };
-
+	static readonly string Excep = "@";
 	void OnPreprocessTexture ()
 	{
-//		bool isValidExtension = false;
+		bool isValidExtension = false;
 //		foreach (var extension in targetExtensions) {
 //			if (Path.GetExtension (assetPath).ToLower ().Equals (extension)) {
 //				isValidExtension = true;
 //				break;
 //			}
 //		}
-//
+		if (Path.GetFileName (assetPath).Contains (Excep)) {
+			return;
+		}
 //		if (!isValidExtension) {
 //			return;
 //		}

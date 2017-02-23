@@ -9,7 +9,6 @@ public class SceneManager : SingletonMonoBehaviour<SceneManager> {
 	public TitleScript titleScript;
 	public float FadeWait;
 
-	// Use this for initialization
 	void Awake () {
 		titleScript.Show ();
 	}
@@ -18,6 +17,7 @@ public class SceneManager : SingletonMonoBehaviour<SceneManager> {
 		StartCoroutine ("Fade", _SceneNum);
 		StartCoroutine( DataManager.Instance.BGMFade(_SceneNum,FadeWait));
 	}
+
 	IEnumerator Fade (int _SceneNum) {
 		//暗幕in
 		float time = 0;
@@ -32,10 +32,7 @@ public class SceneManager : SingletonMonoBehaviour<SceneManager> {
 		time = FadeWait;
 
 		//アクティブ切り替え
-		for (int i = 0; i < Scenes.Length; i++ ){
-			Scenes [i].SetActive(false);
-		}
-		Scenes [_SceneNum].SetActive (true);
+		ChangeScene(_SceneNum);
 		FadeImg.raycastTarget = false;
 
 		//BGM切り替え
@@ -48,10 +45,16 @@ public class SceneManager : SingletonMonoBehaviour<SceneManager> {
 			FadeImg.color = color;
 			yield return null;
 		}
-//		FadeImg.CrossFadeAlpha (00000, FadeWait, true);
 		yield return null;
 	}
 
+	public void ChangeScene (int _SceneNum) {
+		//アクティブ切り替え
+		for (int i = 0; i < Scenes.Length; i++ ){
+			Scenes [i].SetActive(false);
+		}
+		Scenes [_SceneNum].SetActive (true);
+	}
 	// Update is called once per frame
 	void Update () {
 		

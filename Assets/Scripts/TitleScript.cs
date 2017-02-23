@@ -8,6 +8,8 @@ public class TitleScript : MonoBehaviour {
 	// Use this for initialization
 	public void Show () {
 		DataManager.Instance.BGMPlay (BGM_OP);
+
+		SceneManager.Instance.ChangeScene (0);
 	}
 	public void Hide () {
 		SceneManager.Instance.NewScene (1);
