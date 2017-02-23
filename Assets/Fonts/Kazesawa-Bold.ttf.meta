@@ -1,0 +1,21 @@
+fileFormatVersion: 2
+guid: 00ebf21ca2da54aa2b369bb57f3b3e5d
+timeCreated: 1487772846
+licenseType: Free
+TrueTypeFontImporter:
+  serializedVersion: 4
+  fontSize: 16
+  forceTextureCase: -2
+  characterSpacing: 0
+  characterPadding: 1
+  includeFontData: 1
+  fontName: Kazesawa
+  fontNames:
+  - Kazesawa
+  fallbackFontReferences: []
+  customCharacters: 
+  fontRenderingMode: 0
+  ascentCalculationMode: 1
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
