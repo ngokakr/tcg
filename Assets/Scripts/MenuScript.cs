@@ -12,6 +12,8 @@ public class MenuScript : MonoBehaviour {
 		
 	}
 	public void ShowView (int _ViewNum) {
+		//SE
+		DataManager.Instance.SEPlay(3);
 		//古いのをフェードアウト新しいのをフェードイン
 		SystemScript.Effect.Fade (this, Views[NowViewNum],Views[_ViewNum],FadeSpeed);
 		NowViewNum = _ViewNum;

@@ -26,8 +26,7 @@ public class DataManager : SingletonMonoBehaviour<DataManager> {
 		}
 
 		time = 0;
-		BGMSource.clip = BGMList[_BgmNum];
-		BGMSource.Play ();
+		BGMPlay (_BgmNum);
 		//フェードin
 		while (time < _FadeTime) {
 			time += Time.deltaTime;
@@ -36,6 +35,9 @@ public class DataManager : SingletonMonoBehaviour<DataManager> {
 		}
 	}
 	public void BGMPlay (int _BgmNum) {
+		if (_BgmNum == 2) {//メニュー画面
+			BGMSource.time = 28.4f;//resort
+		}
 		BGMSource.clip = BGMList[_BgmNum];
 		BGMSource.Play ();
 	}
@@ -43,6 +45,10 @@ public class DataManager : SingletonMonoBehaviour<DataManager> {
 		SESource.clip = SEList [_SENum];
 		SESource.Play ();
 	}
-
+	public  class Scene  {
+		public void SceneChange (int _SceneNum){
+			SceneManager.Instance.NewScene (_SceneNum);
+		}
+	}
 }
 
