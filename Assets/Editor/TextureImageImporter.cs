@@ -25,7 +25,7 @@ public class TextureImageImporter : AssetPostprocessor
 		var importer = assetImporter as TextureImporter;
 		importer.textureType = TextureImporterType.Sprite;
 		importer.spriteImportMode = SpriteImportMode.Single;
-
+		importer.maxTextureSize = 1024;
 //		importer.npotScale = TextureImporterNPOTScale.None;
 //		importer.alphaIsTransparency = true;
 //		importer.mipmapEnabled = false;

@@ -3,19 +3,20 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using DG.Tweening;
+using CardParam = SystemScript.CardParam;
 public class SceneManager : SingletonMonoBehaviour<SceneManager> {
 	public GameObject[] Scenes;
 	public Image FadeImg;
-	public TitleScript titleScript;
 	public float FadeWait;
-
+	public MenuScript menuScript;
+	public BattleScript battleScript;
 	void Awake () {
-		titleScript.Show ();
 	}
 
 	public void NewScene (int _SceneNum){
-		StartCoroutine ("Fade", _SceneNum);
+		StartCoroutine (Fade(_SceneNum));
 		StartCoroutine( DataManager.Instance.BGMFade(_SceneNum,FadeWait));
+
 	}
 
 	IEnumerator Fade (int _SceneNum) {
@@ -54,6 +55,38 @@ public class SceneManager : SingletonMonoBehaviour<SceneManager> {
 			Scenes [i].SetActive(false);
 		}
 		Scenes [_SceneNum].SetActive (true);
+		switch (_SceneNum) {
+		case 1:
+			{
+				Scenes [_SceneNum].GetComponent<MenuScript> ().StartShow ();
+			}
+			break;
+		}
+	}
+	public void ToCPUArenaBattle (XLS_ArenaData.Param param,int difficulty) {
+		ChangeScene (2);
+//		param.
+//		battleScript.gameObject.SetActive (true);
+		StartCoroutine( DataManager.Instance.BGMFade(2,FadeWait));
+		int useDeck = DataManager.Instance.UseDeck;
+		battleScript.BattleStartOffline (new int[]{ 40, param.HP[difficulty] }, new int[]{ 10, 10 }
+			,SystemScript.cdTocp( DataManager.Deck.GetDeckData(useDeck)), SystemScript.GetEnemyDeck (param.deck));
+//		if (_num == 0) {
+//		}
+//		if (_num == 1) {
+////			battleScript.BattleStartOffline (new int[]{ 40, 40 }, new int[]{ 10, 10 }
+////				,SystemScript.cdTocp( DataManager.Deck.GetDeckData (useDeck)), SystemScript.GetEnemyDeck (0));
+//			battleScript.BattleStartOffline (new int[]{ 40, 40 }, new int[]{ 10, 10 }
+//				,SystemScript.cdTocp( DataManager.Deck.GetDeckData (useDeck)),SystemScript.cdTocp( DataManager.Deck.GetDeckData (useDeck)));
+//		}
+		
+	}
+	public void ToBattleOnline (int _battleType,int[] _LPs,int[] _SPs,List<CardParam> _player,List<CardParam> _enemy,int _initiative = -1) {
+		ChangeScene (2);
+		battleScript.gameObject.SetActive (true);
+		StartCoroutine( DataManager.Instance.BGMFade(2,FadeWait));
+		battleScript.BattleStartOnline (_LPs, _SPs, _player, _enemy, _initiative);
+
 	}
 	// Update is called once per frame
 	void Update () {
