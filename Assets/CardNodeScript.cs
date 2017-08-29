@@ -40,13 +40,14 @@ public class CardNodeScript : MonoBehaviour {
 		CardDataText.fontSize = SkillTextSize;
 		CardDataText.text = Title;
 		//文字色
-		if (!_DeckMode) {
-			if (DataManager.Deck.ContainCard (DataManager.Instance.UseDeck, _cd.uid)) {
-				CardDataText.color = new Color(0f,1f,1f);
-			} else {
-				CardDataText.color = Color.white;
-			}
-		}
+//		if (!_DeckMode) {
+//			if (DataManager.Deck.ContainCard (DataManager.Instance.UseDeck, _cd.uid)) {
+//				CardDataText.color = new Color(0f,1f,1f);
+//			} else {
+//				CardDataText.color = Color.white;
+//			}
+//		}
+
 //		if (_inDeck)
 //			CardDataText.color = new Color(0f,1f,1f);
 //		else

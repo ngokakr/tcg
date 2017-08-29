@@ -12,12 +12,12 @@ public interface IRecieveMessage :  IEventSystemHandler {
 	void OnRecieve(int _num,int _tag);
 }
 
-public interface ICardDragHandler {
+public interface ICardDragHandler : IEventSystemHandler {
 	
 	void OnCardTap (int _num, int _tag);
 
-	void OnVartical (int _num, int _tag);
-	void OnHorizontal (int _num, int _tag);
+	void OnVartical (int _value,int _num, int _tag);
+	void OnHorizontal (int _value, int _num, int _tag);
 }
 
 public class SystemScript : MonoBehaviour {
@@ -34,7 +34,7 @@ public class SystemScript : MonoBehaviour {
 		public int ID;
 		public int LV;
 		public int Count;
-		public int uid;//識別id
+		public int uid;//識別id(バトル専用)
 		public CardData Set (int _Atr,int _ID,int _LV,int _Count,int _Unique_id = -1) {
 			Atr = _Atr;
 			ID = _ID;
@@ -60,7 +60,7 @@ public class SystemScript : MonoBehaviour {
 		public int Atr;
 		public int ID;
 		public int LV;
-		public int uid;
+		public int uid;//識別id(バトル専用)
 		public int Count;
 
 
@@ -187,7 +187,7 @@ public class SystemScript : MonoBehaviour {
 	}
 
 
-
+	//カードシャッフル
 	public static List<CardParam> ShuffleCP (List<CardParam> _lcp) {
 		for (int i = 0; i < _lcp.Count; i++ ){
 			CardParam temp = _lcp [i];
@@ -197,10 +197,14 @@ public class SystemScript : MonoBehaviour {
 		}
 		return _lcp;
 	}
+
+	//パワー
 	public static int AdjustedPower (int _reality,int _maxPower,int _lv) {
 		int maxLv = DataManager.Instance.MaxLV [_reality];
 		return _maxPower - maxLv + _lv;
 	}
+
+
 	public static List<CardParam> cdTocp (List<CardData> _lcd) {
 		List<CardParam> lcp = new List<CardParam> ();
 		for (int i = 0; i < _lcd.Count; i++ ){

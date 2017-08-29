@@ -26,7 +26,7 @@ public class MainScript : SingletonMonoBehaviour<MainScript> ,IRecieveMessage {
 		progress = 10;
 		if (progress == 10) { //空っぽのボックス
 			DataManager.Instance.box = new List<CardData>();
-			DataManager.Instance.decks = new List<List<int>> ();
+			DataManager.Instance.decks = new List<List<CardData>> ();
 
 			var box = DataManager.Instance.box;
 //			int[] Counts = {1,3,3,3,2
@@ -42,6 +42,8 @@ public class MainScript : SingletonMonoBehaviour<MainScript> ,IRecieveMessage {
 			for(int i = 0;i<MaxNum;i++){
 				DataManager.Box.AddCard (0,i, 1);
 			}
+			DataManager.Instance.Save ();
+
 //			for (int i = 0; i < CardNums.Length; i++ ){
 //				for (int i2 = 0; i2 < 3; i2++ ){
 //					DataManager.Box.AddCard (0, CardNums [i], 1);
@@ -50,7 +52,7 @@ public class MainScript : SingletonMonoBehaviour<MainScript> ,IRecieveMessage {
 
 			//0デッキにカード追加
 			for (int i = 0; i < box.Count && i<30; i++ ){
-				DataManager.Deck.SetCard (0, box [i].uid, true);
+				DataManager.Deck.SetCard (0, box [i].Atr,box[i].ID, true);
 			}
 			SaveData.SetInt ("UseDeck", 0);
 			progress++;

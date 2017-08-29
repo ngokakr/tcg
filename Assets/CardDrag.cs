@@ -13,13 +13,16 @@ public class CardDrag : MonoBehaviour, IDragHandler,IPointerDownHandler, IPointe
 	float TotalDeltaY;
 	float TotalDeltaX;
 	public float MaxY = 25f, MinY = -25f;
-	float XMove = 25f;
+	public float XMove = 25f;
+	public float XPagingTime =  0f;
+	public float XPagingInterval = 0.25f;
 	public bool Disable = false;
-	int reachEnd = 0;//-1=下 0=間 1=上 
-	bool YDrag = false;
-	bool XDrag = false;
+	public int reachEnd = 0;//-1=下 0=間 1=上 
+	public bool YDrag = false;
+	public bool XDrag = false;
 //	public UnityEvent OnDown;
 	public GameObject Delegate;
+	public int Tag;
 
 	public void Awake () {
 		DefaultY = transform.localPosition.y;
@@ -38,32 +41,85 @@ public class CardDrag : MonoBehaviour, IDragHandler,IPointerDownHandler, IPointe
 		}
 	}
 
-
+	public void Update () {
+		
+		if (XDrag && reachEnd != 0 && XPagingTime <= 0) {
+			ExecuteEvents.Execute<ICardDragHandler> (
+				target: Delegate, // 呼び出す対象のオブジェクト
+				eventData: null,  // イベントデータ（モジュール等の情報）
+				functor: (recieveTarget, edata) => recieveTarget.OnHorizontal (reachEnd,int.Parse( name), Tag)); // 操作
+			XPagingTime = XPagingInterval;
+			DataManager.Instance.SEPlay (1);
+		}
+		if(0 < XPagingTime)
+			XPagingTime -= Time.deltaTime;
+	}
 	public void OnDrag(PointerEventData eventData)
 	{
 		if (!Disable) {
 			TotalDeltaY += eventData.delta.y;
 			TotalDeltaX += eventData.delta.x;
 			float y = TotalDeltaY;
-			//しきい値に到達した時
+			float x = TotalDeltaX;
 
-			if (MaxY <= TotalDeltaY) {
-				y = MaxY;
-				if (reachEnd != 1) {
-					DataManager.Instance.SEPlay (9);
+			if (!YDrag) {
+				//xがしきい値に到達した
+				if (XMove <= TotalDeltaX) {
+					XDrag = true;
 					reachEnd = 1;
-				}
-			} else if (MinY >= TotalDeltaY) {
-				y = MinY;
-				if (reachEnd != -1) {
-					DataManager.Instance.SEPlay (9);
+//					if (XPagingTime <= 0) {
+//						reachEnd = 1;
+//						ExecuteEvents.Execute<ICardDragHandler> (
+//							target: Delegate, // 呼び出す対象のオブジェクト
+//							eventData: null,  // イベントデータ（モジュール等の情報）
+//							functor: (recieveTarget, edata) => recieveTarget.OnHorizontal (reachEnd, Tag)); // 操作
+//						XPagingTime = XPagingInterval;
+//
+//					}
+//					XPagingTime -= Time.deltaTime;
+				} else if (-XMove >= TotalDeltaX) {
+					XDrag = true;
 					reachEnd = -1;
+//					if (XPagingTime <= 0) {
+//						reachEnd = -1;
+//						ExecuteEvents.Execute<ICardDragHandler> (
+//							target: Delegate, // 呼び出す対象のオブジェクト
+//							eventData: null,  // イベントデータ（モジュール等の情報）
+//							functor: (recieveTarget, edata) => recieveTarget.OnHorizontal (reachEnd, Tag)); // 操作
+//						XPagingTime = XPagingInterval;
+//
+//					}
+//					XPagingTime -= Time.deltaTime;
+				} else {
+					reachEnd = 0;
+					XPagingTime = 0f;
 				}
-			} else {
-				reachEnd = 0;
 			}
+			if (!XDrag) {
+				//yがしきい値に到達した時
+				if (MaxY <= TotalDeltaY) {
+					YDrag = true;
+					y = MaxY;
+					if (reachEnd != 1) {
+						DataManager.Instance.SEPlay (9);
+						reachEnd = 1;
+					}
+				} else if (MinY >= TotalDeltaY) {
+					YDrag = true;
+					y = MinY;
+					if (reachEnd != -1) {
+						DataManager.Instance.SEPlay (9);
+						reachEnd = -1;
+					}
+				} else {
+					reachEnd = 0;
+				}
 
-			transform.localPosition = new Vector3 (transform.localPosition.x, DefaultY + y, 0);
+				if (YDrag) {
+					transform.localPosition = new Vector3 (transform.localPosition.x, DefaultY + y, 0);
+
+				}
+			}
 		}
 	}
 
@@ -82,14 +138,41 @@ public class CardDrag : MonoBehaviour, IDragHandler,IPointerDownHandler, IPointe
 //			eventData: null,  // イベントデータ（モジュール等の情報）
 //			functor: (recieveTarget,y)=>recieveTarget.OnRecieve(_num,Tag)); // 操作
 //
+		if (XDrag) {//xドラッグされていた時
+//			ExecuteEvents.Execute<ICardDragHandler> (
+//				target: Delegate,
+//				eventData: null,
+//				functor: (recieveTarget,edata)=>recieveTarget.OnHorizontal(reachEnd,Tag));
 //
+//			);
+			Debug.Log(reachEnd);
+		} else if (YDrag) {//yドラッグされていた時
+			transform.localPosition = new Vector3 (transform.localPosition.x, DefaultY, 0);
+			ExecuteEvents.Execute<ICardDragHandler> (
+				target: Delegate, // 呼び出す対象のオブジェクト
+				eventData: null,  // イベントデータ（モジュール等の情報）
+				functor: (recieveTarget, edata) => recieveTarget.OnVartical (reachEnd,int.Parse(name), Tag));
+			
+		} else {//クリック
+			DataManager.Instance.SEPlay (0);
+			ExecuteEvents.Execute<ICardDragHandler> (
+				target: Delegate, // 呼び出す対象のオブジェクト
+				eventData: null,  // イベントデータ（モジュール等の情報）
+				functor: (recieveTarget, edata) => recieveTarget.OnCardTap (int.Parse(name), Tag));
+		}
+
 		if (reachEnd != 0) {//カード入れるor抜く
 			DataManager.Instance.SEPlay (1);
 			reachEnd = 0;
 		}
-		TotalDeltaY = 0;
+		OnDisable ();
 		transform.localPosition = new Vector3 (transform.localPosition.x, DefaultY, 0);
 
 	}
-
+	void OnDisable() {
+		XDrag = false;
+		YDrag = false;
+		TotalDeltaX = 0;
+		TotalDeltaY = 0;
+	}
 }

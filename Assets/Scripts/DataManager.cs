@@ -25,7 +25,7 @@ public class DataManager : SingletonMonoBehaviour<DataManager> {
 //	public Dictionary<string,CardData> box = new Dictionary<string, CardData>();
 //	public List<Dictionary<string,CardData>> decks = new List<Dictionary<string, CardData>>();
 	public List<CardData> box = new List<CardData>();
-	public List< List<int>> decks = new List<List<int>> ();
+	public List< List<CardData>> decks = new List<List<CardData>> ();
 	public List<string> deckName;
 	public int UseDeck = 0;
 	public int CardDataSystem;//CardDataやCardParamに変更を加える時に使用する。
@@ -102,53 +102,90 @@ public class DataManager : SingletonMonoBehaviour<DataManager> {
 		public static List<CardParam> GetCardParam () {
 			return SystemScript.cdTocp (DataManager.Instance.box);
 		}
-		public static void AddCard (int _atr,int _id,int _lv) {
+		/// <summary>
+		/// ローカル保存にはsave()必要
+		/// </summary>
+		public static void AddCard (int _atr,int _id,int _count) {
 			var boxDat = DataManager.Instance.box;
-			//ユニークなidをつける
-			int uid = 0;
-			bool unique = true;
-			do {
-				uid = Random.Range (0, 999999);
-				for (int i = 0; i < boxDat.Count; i++) {
-					if (boxDat [i].uid == uid) {
-						unique = false;
-						break;
-					}
-				}
-			} while(unique == false);
+
+			int cdnum = boxDat.FindIndex (x => x.Atr == _atr && x.ID == _id);
+
+
+			//存在していなければ新規
+			if (cdnum == -1) {
+				CardData cd = new CardData().Set (_atr, _id, 1, _count);
+				DataManager.Instance.box.Add (cd);
+			} else {
+				//存在していれば追加
+				CardData cd = DataManager.Instance.box[cdnum];
+				cd.Count += _count;
+				DataManager.Instance.box [cdnum] = cd;
+			}
+
+
+//			//ユニークなidをつける
+//			int uid = 0;
+//			bool unique = true;
+//			do {
+//				uid = Random.Range (0, 999999);
+//				for (int i = 0; i < boxDat.Count; i++) {
+//					if (boxDat [i].uid == uid) {
+//						unique = false;
+//						break;
+//					}
+//				}
+//			} while(unique == false);
 			//カードを追加
-			var cd = new CardData ().Set (_atr, _id, _lv, 1, uid);
-			DataManager.Instance.box.Add (cd);
-			DataManager.Instance.Save ();
+//			var cd = new CardData ().Set (_atr, _id, _lv, 1, uid);
+//			DataManager.Instance.box.Add (cd);
+
+//			DataManager.Instance.Save ();
 		}
-		public static void LevelUpByCard(CardData _Base,CardData _Material) { //カードによる強化
+
+		/// <summary>
+		/// セーブ必要
+		/// </summary>
+		public static bool LevelUp(int _atr,int _id,int _usecounts){
 			var boxDat = DataManager.Instance.box;
-			//先に削除
-			for (int i = 0; i < boxDat.Count; i++ ){
-				if (boxDat [i].uid == _Material.uid) {
-					boxDat.RemoveAt (i);
-					break;
-				}
-				if (i == boxDat.Count - 1)
-					Debug.LogError ("Not Found Card : "+_Material.uid);
-			}
-			LevelUp (_Base);
+			int cdnum = boxDat.FindIndex (x => x.Atr == _atr && x.ID == _id);
+			CardData cd = boxDat [cdnum];
+			if (_usecounts <= cd.Count) {
+				cd.Count -= _usecounts;
+				cd.LV++;
+			} else
+				return false;
+			DataManager.Instance.box [cdnum] = cd;
+			return true;
 		}
-		public static void LevelUp(CardData _Base) { //ポイントによる強化
-			var boxDat = DataManager.Instance.box;
-			//レベルアップ
-			for (int i = 0; i < boxDat.Count; i++ ){
-				if (boxDat [i].uid == _Base.uid) {
-					CardData cd = boxDat [i];
-					cd.LV++;
-					boxDat [i] = cd;
-					break;
-				}
-				if (i == boxDat.Count - 1)
-					Debug.LogError ("Not Found Card : "+_Base.uid);
-			}
-			DataManager.Instance.Save ();
-		}
+//
+//		public static void LevelUpByCard(CardData _Base,CardData _Material) { //カードによる強化
+//			var boxDat = DataManager.Instance.box;
+//			//先に削除
+//			for (int i = 0; i < boxDat.Count; i++ ){
+//				if (boxDat [i].uid == _Material.uid) {
+//					boxDat.RemoveAt (i);
+//					break;
+//				}
+//				if (i == boxDat.Count - 1)
+//					Debug.LogError ("Not Found Card : "+_Material.uid);
+//			}
+//			LevelUp (_Base);
+//		}
+//		public static void LevelUp(CardData _Base) { //ポイントによる強化
+//			var boxDat = DataManager.Instance.box;
+//			//レベルアップ
+//			for (int i = 0; i < boxDat.Count; i++ ){
+//				if (boxDat [i].uid == _Base.uid) {
+//					CardData cd = boxDat [i];
+//					cd.LV++;
+//					boxDat [i] = cd;
+//					break;
+//				}
+//				if (i == boxDat.Count - 1)
+//					Debug.LogError ("Not Found Card : "+_Base.uid);
+//			}
+//			DataManager.Instance.Save ();
+//		}
 		public static CardData GetCardData (int _uid) {
 			for (int i = 0; i < DataManager.Instance.box.Count; i++ ){
 				CardData cd = DataManager.Instance.box [i];
@@ -211,40 +248,89 @@ public class DataManager : SingletonMonoBehaviour<DataManager> {
 		/// <summary>
 		/// デッキに入れる枚数をCountに設定した数にする
 		/// </summary>
-		public static void SetCard(int _deckNum,int _unique_id,bool _Set) {
+
+		public static void SetCard(int _deckNum,int _atr,int _id,bool _Set) {
+			int maxSameName = 3;
+
 			var decks = DataManager.Instance.decks;
 			while (decks.Count <= _deckNum){//デッキ枠が足りてなければ作る。
-				decks.Add (new List<int>());
+				decks.Add (new List<CardData>());
 			}
-			var deck = DataManager.Instance.decks[_deckNum];
-			for (int i = 0; i < deck.Count; i++ ){
-				if (deck [i] == _unique_id) {
-					if (!_Set) {
-						deck.RemoveAt (i);
-//						DataManager.Instance.Save ();
-						return;
+
+			List<CardData> deck = DataManager.Instance.decks[_deckNum];
+
+			int cardIndex = deck.FindIndex (x => x.Atr == _atr && x.ID == _id);
+//			int cardIndex = GetCardIndex (deck, _atr, _id);
+
+			if (cardIndex == -1) {
+				//追加
+				if(_Set)
+					deck.Add (new CardData ().Set (_atr, _id, -1, 1, 0));
+			} else {
+				//枚数修正
+				CardData cd = deck [cardIndex];
+				if (_Set && cd.Count < maxSameName) {//追加
+					cd.Count++;
+					deck [cardIndex] = cd;
+				}
+				if (!_Set && 0 < cd.Count) {//外す
+					if (cd.Count == 1) {//0枚になるときは削除
+						deck.RemoveAt (cardIndex);
 					} else {
-						Debug.LogError ("すでに入っているカード"+_unique_id);
-						return;
+						cd.Count--;
+						deck [cardIndex] = cd;
 					}
 				}
 			}
-			deck.Add (_unique_id);
-//			DataManager.Instance.Save ();
+
+//			decks [_deckNum] = deck;
+//
+//
+//			for (int i = 0; i < deck.Count; i++ ){
+//				if (deck [i] == _unique_id) {
+//					if (!_Set) {
+//						deck.RemoveAt (i);
+//						//						DataManager.Instance.Save ();
+//						return;
+//					} else {
+//						Debug.LogError ("すでに入っているカード"+_unique_id);
+//						return;
+//					}
+//				}
+//			}
+//			deck.Add (_unique_id);
+			//			DataManager.Instance.Save ();
 		}
+
+//		public static void SetCard(int _deckNum,int _unique_id,bool _Set) {
+//			var decks = DataManager.Instance.decks;
+//			while (decks.Count <= _deckNum){//デッキ枠が足りてなければ作る。
+//				decks.Add (new List<int>());
+//			}
+//			var deck = DataManager.Instance.decks[_deckNum];
+//			for (int i = 0; i < deck.Count; i++ ){
+//				if (deck [i] == _unique_id) {
+//					if (!_Set) {
+//						deck.RemoveAt (i);
+////						DataManager.Instance.Save ();
+//						return;
+//					} else {
+//						Debug.LogError ("すでに入っているカード"+_unique_id);
+//						return;
+//					}
+//				}
+//			}
+//			deck.Add (_unique_id);
+////			DataManager.Instance.Save ();
+//		}
 		public static List<CardData> GetDeckData (int _deckNum = -1) {
 			if (_deckNum == -1)
 				_deckNum = DataManager.Instance.UseDeck;
-			List<int> uids = DataManager.Instance.decks[_deckNum];
-			List<CardData> lcp = new List<CardData> ();
-			for (int i = 0; i < uids.Count; i++ ){
-				lcp.Add(Box.GetCardData( uids [i]));
-			}
-			return lcp;
+			return DataManager.Instance.decks[_deckNum];
 		}
-		public static bool ContainCard (int _deckNum,int _uid) {
+		public static bool ContainCard (int _deckNum,int _atr,int _id) {
 			//デッキに含まれているかどうか
-			return DataManager.Instance.decks[_deckNum].Contains (_uid);
+			return GetCardIndex(DataManager.Instance.decks[_deckNum],_atr,_id) != -1;
 		}
 	}
 //	public class Deck
@@ -303,6 +389,13 @@ public class DataManager : SingletonMonoBehaviour<DataManager> {
 //		}
 //	}
 
+
+	public static int GetCardIndex (List<CardData> _cd,int _atr,int _id) {
+		if (_cd == null || _cd.Count == 0)
+			return -1;
+		return _cd.FindIndex (x => x.Atr == _atr && x.ID == _id);
+	}
+
 	//初期ロード
 	public void DataAllLoad () {
 		//ボックス
@@ -322,7 +415,7 @@ public class DataManager : SingletonMonoBehaviour<DataManager> {
 		//デッキ
 		string PrefsDeck = SaveData.GetString ("Deck", "");
 		if (PrefsBox != "") {
-			decks = JsonMapper.ToObject<List<List<int>>>(PrefsDeck);
+			decks = JsonMapper.ToObject<List<List<CardData>>>(PrefsDeck);
 		} else {
 			Debug.LogError ("Deck is Null");
 		}

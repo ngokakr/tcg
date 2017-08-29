@@ -7,7 +7,7 @@ using CardData = SystemScript.CardData;
 using CardParam = SystemScript.CardParam;
 using DG.Tweening;
 
-public class NewDeckBoxScript : MonoBehaviour ,IRecieveMessage{
+public class NewDeckBoxScript : MonoBehaviour ,IRecieveMessage,ICardDragHandler{
 	
 	int useDeck = 0;
 
@@ -25,9 +25,11 @@ public class NewDeckBoxScript : MonoBehaviour ,IRecieveMessage{
 		public GameObject[] LeftRightPageButton;
 		public GameObject[] BreakGenerateButton;
 		public GameObject CantGenerateButton;
+
 //		public GameObject deckCardImages;
 	}
 	public BoxObjs boxObjs;
+	public CardDragScroll cardDragScroll;
 	public NewCardDetailScript detailScript;
 
 	int nowPage = 0;
@@ -47,8 +49,9 @@ public class NewDeckBoxScript : MonoBehaviour ,IRecieveMessage{
 	public bool DeckMode = true;
 	public bool IDSort = false;
 
+
 	public void Show() {
-		
+		cardDragScroll.Delegate = gameObject;
 		Refresh ();
 	}
 
@@ -100,7 +103,6 @@ public class NewDeckBoxScript : MonoBehaviour ,IRecieveMessage{
 				img.gameObject.SetActive (false);
 				img.RemoveImage ();
 			}
-
 		}
 
 		//デッキ表示
@@ -124,8 +126,13 @@ public class NewDeckBoxScript : MonoBehaviour ,IRecieveMessage{
 
 		boxObjs.PageInfo.text = string.Format ("CARD BOX {0}/{1}",nowPage+1,MaxPage+1);
 
+		int cardCounts = 0;
+		for (int i = 0; i < SortedDeck.Count; i++ ){
+			cardCounts += SortedDeck [i].Count;
+		}
+
 		//データ表示 & カードデータ生成
-		boxObjs.Info .text = string.Format("カード総数 {0}  種類 {1}\nデッキ枚数 [<color=#00ff00>{2} / 30</color>]",BoxCount,kindCount,SortedDeck.Count);
+		boxObjs.Info .text = string.Format("カード総数 {0}  種類 {1}\nデッキ枚数 [<color=#00ff00>{2} / 30</color>]",BoxCount,kindCount,cardCounts);
 
 	}
 
@@ -222,11 +229,14 @@ public class NewDeckBoxScript : MonoBehaviour ,IRecieveMessage{
 	}
 
 	public void BoxCardTapNotify (int num) {
-		DataManager.Instance.SEPlay (0);
+//		DataManager.Instance.SEPlay (0);
 		SelectingCard = SortedBox [nowPage * 10 + num];
 		ShowDetail ();
 	}
-
+	public void DeckTapNotify (int num){
+		SelectingCard = SortedDeck [num];
+		ShowDetail ();
+	}
 	public void SkillTextTapNotify () {
 		DataManager.Instance.SEPlay (7);
 
@@ -249,7 +259,8 @@ public class NewDeckBoxScript : MonoBehaviour ,IRecieveMessage{
 		Refresh ();
 	}
 	public void SetCard (bool _Set){
-		DataManager.Deck.SetCard (useDeck,SelectingCard.uid,_Set);
+		DataManager.Deck.SetCard (useDeck,SelectingCard.Atr,SelectingCard.ID,_Set);
+		DataManager.Instance.Save ();
 		Refresh ();
 	}
 
@@ -257,6 +268,30 @@ public class NewDeckBoxScript : MonoBehaviour ,IRecieveMessage{
 		RoleRefine = num;
 		nowPage = 0;
 		Refresh ();
+	}
+	public void OnCardTap (int _num, int _tag){
+		Debug.Log(string.Format("num:{0} tag;{1}",_num,_tag));
+		if(_tag == 0)
+			BoxCardTapNotify (_num);
+		if (_tag == 1)
+			DeckTapNotify (_num);
+		cardDragScroll.transform.GetChild(0).GetChild(0).GetComponent<ContentSizeFitter> ().SetLayoutHorizontal ();
+	}
+
+	public void OnVartical (int value,int _num, int _tag){
+		if (_tag == 0) {
+			BoxCardTapNotify (_num);
+			SetCard (value == -1 ? false : true);
+		} else if (_tag == 1) {
+			DeckTapNotify (_num);
+			SetCard (value == -1 ? false : true);
+		}
+		Debug.Log (cardDragScroll.transform.GetChild (0).GetChild (0).name);
+
+	}
+	public void OnHorizontal (int value,int _num, int _tag){
+		if(_tag == 0)
+			ArrowKeyNotify (value == -1 ? true : false);
 	}
 
 }

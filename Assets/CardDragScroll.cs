@@ -21,8 +21,8 @@ public class CardDragScroll : ScrollRect ,IPointerDownHandler,IPointerUpHandler{
 	bool YDrag = false;
 	bool XDrag = false;
 	Transform t;
-
-	public UnityEvent OnClick;
+	public GameObject Delegate;
+//	public UnityEvent OnClick;
 
 	//押下と同時
 	public void OnPointerDown (PointerEventData eventData)
@@ -34,7 +34,7 @@ public class CardDragScroll : ScrollRect ,IPointerDownHandler,IPointerUpHandler{
 		} else {
 			Disable = false;
 		}
-		DefaultY = t.localPosition.y;
+		DefaultY = t.localPosition.y;//個々のカードのY座標
 		if (!Disable) {
 			//デフォルト座標
 //			DefaultY = transform.localPosition.y;
@@ -98,19 +98,29 @@ public class CardDragScroll : ScrollRect ,IPointerDownHandler,IPointerUpHandler{
 	void RepositionMove () {
 		if (YDrag) {//yドラッグされていた時
 			t.localPosition = new Vector3 (t.localPosition.x, DefaultY, 0);
+			ExecuteEvents.Execute<ICardDragHandler> (
+				target: Delegate, // 呼び出す対象のオブジェクト
+				eventData: null,  // イベントデータ（モジュール等の情報）
+				functor: (recieveTarget, edata) => recieveTarget.OnVartical (reachEnd,t.parent.GetSiblingIndex(),1));
 		}
-		if (!XDrag && !YDrag) {
-			OnClick.Invoke();
+		if (!XDrag && !YDrag) {//タップ
+			ExecuteEvents.Execute<ICardDragHandler> (
+				target: Delegate, // 呼び出す対象のオブジェクト
+				eventData: null,  // イベントデータ（モジュール等の情報）
+				functor: (recieveTarget, edata) => recieveTarget.OnCardTap (t.parent.GetSiblingIndex(),1));
 		}
-		YDrag = false;
-		XDrag = false;
+
 		if (reachEnd != 0) {//カード入れるor抜く
 			DataManager.Instance.SEPlay (1);
 			reachEnd = 0;
 		}
-		TotalDeltaY = 0;
-		TotalDeltaX = 0;
 
+
+		XDrag = false;
+		YDrag = false;
+		TotalDeltaX = 0;
+		TotalDeltaY = 0;
+		reachEnd = 0;
 	}
 
 }

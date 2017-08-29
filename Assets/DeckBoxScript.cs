@@ -258,7 +258,7 @@ public class DeckBoxScript : MonoBehaviour ,IRecieveMessage{
 
 			if (_type == 0) {
 				//取り除く
-				DataManager.Deck.SetCard (useDeck, SelectingCard.uid, false);
+				DataManager.Deck.SetCard (useDeck, SelectingCard.Atr,SelectingCard.ID, false);
 			} else
 				//詳細表示
 				DetailShow (SortedDeck [_num]);
@@ -267,12 +267,12 @@ public class DeckBoxScript : MonoBehaviour ,IRecieveMessage{
 			SelectingCard = SortedBox[_num];
 			if (_type == 0) {
 				//デッキにカードが含まれているか
-				if (DataManager.Deck.ContainCard (useDeck, SelectingCard.uid)) {
+				if (DataManager.Deck.ContainCard (useDeck,SelectingCard.Atr,SelectingCard.ID)) {
 					//取り除く
-					DataManager.Deck.SetCard(useDeck,SelectingCard.uid,false);
+					DataManager.Deck.SetCard(useDeck,SelectingCard.Atr,SelectingCard.ID,false);
 				} else {
 					//デッキに追加
-					DataManager.Deck.SetCard(useDeck,SelectingCard.uid,true);
+					DataManager.Deck.SetCard(useDeck,SelectingCard.Atr,SelectingCard.ID,true);
 				}
 			} else
 				//詳細表示
@@ -318,7 +318,7 @@ public class DeckBoxScript : MonoBehaviour ,IRecieveMessage{
 		cardDatail.ShowHide (true);
 	}
 	public void SetCard (bool _Set){
-		DataManager.Deck.SetCard (useDeck,SelectingCard.uid,_Set);
+		DataManager.Deck.SetCard (useDeck,SelectingCard.Atr,SelectingCard.ID,_Set);
 		Refresh ();
 	}
 
