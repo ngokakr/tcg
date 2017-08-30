@@ -386,9 +386,9 @@ namespace BestHTTP.WebSocket
                             // If an endpoint receives a Close frame and did not previously send a Close frame, the endpoint MUST send a Close frame in response.
                             case WebSocketFrameTypes.ConnectionClose:
                                 CloseFrame = frame;
-                                if (!closeSent)
-                                    Send(new WebSocketFrame(this.WebSocket, WebSocketFrameTypes.ConnectionClose, null));
-                                closed = closeSent;
+								if (!closeSent)
+									Send(new WebSocketFrame(this.WebSocket, WebSocketFrameTypes.ConnectionClose, null));
+                                closed = true;
                                 break;
                         }
                     }

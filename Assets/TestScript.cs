@@ -1,26 +1,57 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
+using MiniJSON;
 using UnityEngine;
 using UnityEngine.UI;
+using BestHTTP;
+
 
 public class TestScript : MonoBehaviour {
-//	public Text txt;
-//	int[] xZiku = {30,10,15,2,8,28};
-//	int[] yZiku = {30,10,15,2,8,28};
-//	int[][] yx = new int[6][];
-//	public void Awake () {
-//		for (int i = 0; i < 6; i++) {
-//			yx [i] = new int[6];
-//			//y軸 i列目
-//			printf("%d",i+1);
-//			printf("|");
-//			for (int j = 0; j < 6; j++) {
-//				//y軸 i列目 : x軸 j行目
-//				yx[i][j] = yZiku[i] + xZiku[j];
-//				printf("%3d",yx[i][j]);
-//			}
-//			printf("\n");
-//		}
-//
-//	}
+	public bool Reset = false;
+	public string URL;
+	public string Path;
+
+	public void Awake (){
+		HTTPRequest request = new HTTPRequest (new Uri (URL+Path), HTTPMethods.Post, OnRequestFinished);
+		request.AddField ("name", "akr");
+		request.AddField ("password",StringUtils.GeneratePassword(30));
+		request.Send ();
+	}
+	void Update () {
+		if(Reset){
+			Reset = false;
+			Awake ();
+		}
+	}
+
+	void OnRequestFinished(HTTPRequest request, HTTPResponse response) {
+		
+		Debug.Log("Request Finished! Text received: " + response.DataAsText);
+	}
+	public static class StringUtils
+	{
+		private const string PASSWORD_CHARS = 
+			"0123456789abcdefghijklmnopqrstuvwxyz";
+
+		public static string GeneratePassword( int length )
+		{
+			var sb  = new System.Text.StringBuilder( length );
+			var r   = new System.Random();
+
+			for ( int i = 0; i < length; i++ )
+			{
+				int     pos = r.Next( PASSWORD_CHARS.Length );
+				char    c   = PASSWORD_CHARS[ pos ];
+				sb.Append( c );
+			}
+
+			return sb.ToString();
+		}
+	}
+
+
+
+
+
 }

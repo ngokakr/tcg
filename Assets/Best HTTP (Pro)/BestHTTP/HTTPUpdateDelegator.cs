@@ -71,10 +71,8 @@ namespace BestHTTP
                     if (Instance == null)
                     {
                         go = new GameObject("HTTP Update Delegator");
-                        go.hideFlags = HideFlags.HideAndDontSave;
-
-                        GameObject.DontDestroyOnLoad(go);
-
+                        go.hideFlags = HideFlags.DontSave;
+                        
                         Instance = go.AddComponent<HTTPUpdateDelegator>();
                     }
                     IsCreated = true;
@@ -90,6 +88,7 @@ namespace BestHTTP
                     UnityEditor.EditorApplication.playmodeStateChanged += Instance.OnPlayModeStateChanged;
 #endif
                 }
+                HTTPManager.Logger.Information("HTTPUpdateDelegator", "Instance Created!");
             }
             catch
             {
@@ -122,6 +121,15 @@ namespace BestHTTP
             }
 
             IsSetupCalled = true;
+
+            // Unity doesn't tolerate well if the DontDestroyOnLoad called when purely in editor mode. So, we will set the flag
+            //  only when we are playing, or not in the editor.
+#if UNITY_EDITOR
+            if (UnityEditor.EditorApplication.isPlaying)
+#endif
+                GameObject.DontDestroyOnLoad(this.gameObject);
+
+            HTTPManager.Logger.Information("HTTPUpdateDelegator", "Setup done!");
         }
 
 #if NETFX_CORE
@@ -175,6 +183,8 @@ namespace BestHTTP
 
         void OnDisable()
         {
+            HTTPManager.Logger.Information("HTTPUpdateDelegator", "OnDisable Called!");
+
 #if UNITY_EDITOR
             if (UnityEditor.EditorApplication.isPlaying)
 #endif
@@ -183,6 +193,8 @@ namespace BestHTTP
 
         void OnApplicationQuit()
         {
+            HTTPManager.Logger.Information("HTTPUpdateDelegator", "OnApplicationQuit Called!");
+
             if (OnBeforeApplicationQuit != null)
             {
                 try

@@ -18,7 +18,7 @@ public class MainScript : SingletonMonoBehaviour<MainScript> ,IRecieveMessage {
 		#if UNITY_EDITOR
 
 		#else
-		Debug.logger.logEnabled = LogEnabled;
+		Debug.unityLogger.logEnabled = LogEnabled;
 		#endif
 		Application.targetFrameRate = 30;
 		int progress =  SaveData.GetInt ("Progress",10);

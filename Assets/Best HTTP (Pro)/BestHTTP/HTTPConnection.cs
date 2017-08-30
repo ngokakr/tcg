@@ -328,11 +328,11 @@ namespace BestHTTP
                                             redirected = CurrentRequest.IsRedirected = true;
                                         }
                                         else
-#if !NETFX_CORE
+                                            #if !NETFX_CORE
                                                 throw new MissingFieldException(string.Format("Got redirect status({0}) without 'location' header!", CurrentRequest.Response.StatusCode.ToString()));
-#else
+                                            #else
                                                 throw new Exception(string.Format("Got redirect status({0}) without 'location' header!", CurrentRequest.Response.StatusCode.ToString()));
-#endif
+                                            #endif
 
                                         goto default;
                                     }
@@ -344,21 +344,25 @@ namespace BestHTTP
 #endif
                                     break;
                             }
+                          
+                            // Closing the stream is done manually
+                            if (CurrentRequest.Response == null || !CurrentRequest.Response.IsClosedManually) {
+                                // If we have a response and the server telling us that it closed the connection after the message sent to us, then
+                                //  we will close the connection too.
+                                bool closeByServer = CurrentRequest.Response == null || CurrentRequest.Response.HasHeaderWithValue("connection", "close");
+                                bool closeByClient = !CurrentRequest.IsKeepAlive;
 
-                            // If we have a response and the server telling us that it closed the connection after the message sent to us, then
-                            //  we will close the connection too.
-                            bool closeByServer = CurrentRequest.Response == null || CurrentRequest.Response.HasHeaderWithValue("connection", "close");
-                            bool closeByClient = !CurrentRequest.Response.IsClosedManually && !CurrentRequest.IsKeepAlive;
-                            if (closeByServer || closeByClient)
-                                Close();
-                            else if (CurrentRequest.Response != null)
-                            {
-                                var keepAliveheaderValues = CurrentRequest.Response.GetHeaderValues("keep-alive");
-                                if (keepAliveheaderValues != null && keepAliveheaderValues.Count > 0)
+                                if (closeByServer || closeByClient)
+                                    Close();
+                                else if (CurrentRequest.Response != null)
                                 {
-                                    if (KeepAlive == null)
-                                        KeepAlive = new KeepAliveHeader();
-                                    KeepAlive.Parse(keepAliveheaderValues);
+                                    var keepAliveheaderValues = CurrentRequest.Response.GetHeaderValues("keep-alive");
+                                    if (keepAliveheaderValues != null && keepAliveheaderValues.Count > 0)
+                                    {
+                                        if (KeepAlive == null)
+                                            KeepAlive = new KeepAliveHeader();
+                                        KeepAlive.Parse(keepAliveheaderValues);
+                                    }
                                 }
                             }
                         }
@@ -441,13 +445,13 @@ namespace BestHTTP
                             RecycleNow();
                     }
 
-#if !BESTHTTP_DISABLE_CACHING && (!UNITY_WEBGL || UNITY_EDITOR)
+                    #if !BESTHTTP_DISABLE_CACHING && (!UNITY_WEBGL || UNITY_EDITOR)
                     HTTPCacheService.SaveLibrary();
-#endif
+                    #endif
 
-#if !BESTHTTP_DISABLE_COOKIES && (!UNITY_WEBGL || UNITY_EDITOR)
+                    #if !BESTHTTP_DISABLE_COOKIES && (!UNITY_WEBGL || UNITY_EDITOR)
                     CookieJar.Persist();
-#endif
+                    #endif
                 }
             }
         }
@@ -460,7 +464,7 @@ namespace BestHTTP
 #endif
                 CurrentRequest.CurrentUri;
 
-#region TCP Connection
+            #region TCP Connection
 
             if (Client == null)
                 Client = new TcpClient();
@@ -471,9 +475,9 @@ namespace BestHTTP
 
 #if NETFX_CORE || (UNITY_WP8 && !UNITY_EDITOR)
                 Client.UseHTTPSProtocol =
-#if !BESTHTTP_DISABLE_ALTERNATE_SSL && (!UNITY_WEBGL || UNITY_EDITOR)
+                #if !BESTHTTP_DISABLE_ALTERNATE_SSL && (!UNITY_WEBGL || UNITY_EDITOR)
                     !CurrentRequest.UseAlternateSSL &&
-#endif
+                #endif
                     HTTPProtocolFactory.IsSecureProtocol(uri);
 #endif
 
@@ -488,7 +492,7 @@ namespace BestHTTP
             else if (HTTPManager.Logger.Level <= Logger.Loglevels.Information)
                     HTTPManager.Logger.Information("HTTPConnection", "Already connected to " + uri.Host + ":" + uri.Port.ToString());
 
-#endregion
+            #endregion
 
             StartTime = DateTime.UtcNow;
 
@@ -502,7 +506,7 @@ namespace BestHTTP
 
 
 #if !BESTHTTP_DISABLE_PROXY
-#region Proxy Handling
+                #region Proxy Handling
 
                 if (HasProxy && (!Proxy.IsTransparent || (isSecure && Proxy.NonTransparentForHTTPS)))
                 {
@@ -598,13 +602,13 @@ namespace BestHTTP
 
                     } while (retry);
                 }
-#endregion
+                #endregion
 #endif // #if !BESTHTTP_DISABLE_PROXY
 
                 // We have to use CurrentRequest.CurrentUri here, because uri can be a proxy uri with a different protocol
                 if (isSecure)
                 {
-#region SSL Upgrade
+                    #region SSL Upgrade
 
 #if !BESTHTTP_DISABLE_ALTERNATE_SSL && (!UNITY_WEBGL || UNITY_EDITOR)
                     if (CurrentRequest.UseAlternateSSL)
@@ -640,7 +644,7 @@ namespace BestHTTP
 #endif
                     }
 
-#endregion
+                    #endregion
                 }
             }
         }
@@ -662,8 +666,11 @@ namespace BestHTTP
                 return false;
             }
 
-            // We didn't check HTTPManager.IsCachingDisabled's value on purpose. (sending out a request with conditional get then change IsCachingDisabled to true may produce undefined behavior)
-            if (CurrentRequest.Response.StatusCode == 304)
+            if (CurrentRequest.Response.StatusCode == 304
+#if !BESTHTTP_DISABLE_CACHING && (!UNITY_WEBGL || UNITY_EDITOR)
+                && !CurrentRequest.DisableCache
+#endif
+                )
             {
 #if !BESTHTTP_DISABLE_CACHING && (!UNITY_WEBGL || UNITY_EDITOR)
                 if (CurrentRequest.IsRedirected)
@@ -684,9 +691,9 @@ namespace BestHTTP
             return true;
         }
 
-#endregion
+        #endregion
 
-#region Helper Functions
+        #region Helper Functions
 
 #if !BESTHTTP_DISABLE_CACHING && (!UNITY_WEBGL || UNITY_EDITOR)
 
@@ -836,7 +843,7 @@ namespace BestHTTP
             }
         }
 
-#endregion
+        #endregion
 
         protected override void Dispose(bool disposing)
         {

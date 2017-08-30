@@ -5,6 +5,8 @@ Temp/
 Obj/
 UnityGenerated/
 Library/
+iOS/
+Android/
 
 # ===================================== #
 # Visual Studio / MonoDevelop generated #

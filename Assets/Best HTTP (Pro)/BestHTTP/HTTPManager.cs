@@ -193,7 +193,7 @@ namespace BestHTTP
         #region Manager variables
 
         /// <summary>
-        /// All connection has a reference in this Dictionary untill it's removed completly.
+        /// All connection has a reference in this Dictionary until it's removed completely.
         /// </summary>
         private static Dictionary<string, List<ConnectionBase>> Connections = new Dictionary<string, List<ConnectionBase>>();
 
@@ -203,7 +203,7 @@ namespace BestHTTP
         private static List<ConnectionBase> ActiveConnections = new List<ConnectionBase>();
 
         /// <summary>
-        /// Free connections. They can be removed completly after a specified time.
+        /// Free connections. They can be removed completely after a specified time.
         /// </summary>
         private static List<ConnectionBase> FreeConnections = new List<ConnectionBase>();
 

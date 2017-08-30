@@ -28,7 +28,12 @@ public class NewDeckBoxScript : MonoBehaviour ,IRecieveMessage,ICardDragHandler{
 
 //		public GameObject deckCardImages;
 	}
+	public Vector2 BoxCardInfoSize;
+	public Vector2 DeckCardInfoSize;
+	public int BoxCardInfoFontSize;
+	public int DeckCardInfoFontSize;
 	public BoxObjs boxObjs;
+	public GameObject cardInfo;
 	public CardDragScroll cardDragScroll;
 	public NewCardDetailScript detailScript;
 
@@ -99,6 +104,8 @@ public class NewDeckBoxScript : MonoBehaviour ,IRecieveMessage,ICardDragHandler{
 			if (x < SortedBox.Count) {
 				img.gameObject.SetActive (true);
 				img.Set (SortedBox [x]);
+				var cp = SortedBox [x];
+				SetCardInfo(false,i,GetContainsCards(DataManager.Instance.UseDeck,cp.Atr,cp.ID));
 			} else {
 				img.gameObject.SetActive (false);
 				img.RemoveImage ();
@@ -112,6 +119,9 @@ public class NewDeckBoxScript : MonoBehaviour ,IRecieveMessage,ICardDragHandler{
 			if (i < SortedDeck.Count) {
 				t.gameObject.SetActive (true);
 				t.Find ("Card").GetComponent<CardImageScript> ().Set (SortedDeck [i]);
+
+				var cp = SortedDeck [i];
+				SetCardInfo(true,i,GetContainsCards(DataManager.Instance.UseDeck,cp.Atr,cp.ID));
 			} else {
 				t.gameObject.SetActive (false);
 				t.Find ("Card").GetComponent<CardImageScript> ().RemoveImage ();
@@ -275,7 +285,7 @@ public class NewDeckBoxScript : MonoBehaviour ,IRecieveMessage,ICardDragHandler{
 			BoxCardTapNotify (_num);
 		if (_tag == 1)
 			DeckTapNotify (_num);
-		cardDragScroll.transform.GetChild(0).GetChild(0).GetComponent<ContentSizeFitter> ().SetLayoutHorizontal ();
+		DataManager.Instance.SEPlay (0);
 	}
 
 	public void OnVartical (int value,int _num, int _tag){
@@ -286,12 +296,71 @@ public class NewDeckBoxScript : MonoBehaviour ,IRecieveMessage,ICardDragHandler{
 			DeckTapNotify (_num);
 			SetCard (value == -1 ? false : true);
 		}
-		Debug.Log (cardDragScroll.transform.GetChild (0).GetChild (0).name);
-
+		cardDragScroll.transform.GetChild(0).GetChild(0).GetComponent<ContentSizeFitter> ().horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+		cardDragScroll.transform.GetChild(0).GetChild(0).GetComponent<ContentSizeFitter> ().horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+		DataManager.Instance.SEPlay (1);
 	}
 	public void OnHorizontal (int value,int _num, int _tag){
 		if(_tag == 0)
 			ArrowKeyNotify (value == -1 ? true : false);
+		
+	}
+
+	public void SetCardInfo (bool Deck,int num,int value) {
+//		Transform parent;
+		Transform InfoTargetCard;
+		if (Deck) {
+			InfoTargetCard = boxObjs.ScrollContent.GetChild(num);
+		} else {
+//			parent = 
+			InfoTargetCard = boxObjs.BoxCardsImage [num].transform;
+		}
+
+
+		Transform Info = InfoTargetCard.Find ("CardInfo");
+
+		//表示を消す
+		if (value <= 0 || (value == 1 && Deck)) {
+			if (Info != null)
+				Destroy (Info.gameObject);
+			
+			return;
+		}
+
+		//新規生成
+		if (Info == null) {
+			Info = Instantiate (cardInfo.transform,InfoTargetCard);
+			Info.localPosition = Vector3.zero;
+			Info.localScale = Vector3.one;
+			Info.name = "CardInfo";
+		}
+
+		if(Deck){
+//			x.SetParent(
+			Info.Find ("Image").GetComponent<RectTransform> ().sizeDelta = DeckCardInfoSize;
+			Info.Find ("Text").GetComponent<Text> ().fontSize = DeckCardInfoFontSize;
+			Info.Find ("Text").GetComponent<Text>().text = "×"+value;
+
+		} else{
+			Info.Find ("Image").GetComponent<RectTransform> ().sizeDelta = BoxCardInfoSize;
+
+			string str = "";
+			if (value == 3) {
+				str = "セット上限\n";
+			} else {
+				str = "使用中\n";
+			}
+			Info.Find ("Text").GetComponent<Text> ().fontSize = BoxCardInfoFontSize;
+			Info.Find ("Text").GetComponent<Text>().text = str+"×"+value;
+		}
+
+	}
+
+	int GetContainsCards (int decknum,int atr,int ID) {
+		int index = DataManager.Instance.decks [decknum].FindIndex (x => x.Atr == atr && x.ID == ID);
+		if (index == -1)
+			return 0;
+		return DataManager.Instance.decks [decknum] [index].Count;
 	}
 
 }

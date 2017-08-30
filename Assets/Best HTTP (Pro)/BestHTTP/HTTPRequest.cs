@@ -875,7 +875,11 @@ namespace BestHTTP
                 AddHeader("Referer", Uri.ToString());
 
             if (!HasHeader("Accept-Encoding"))
-                AddHeader("Accept-Encoding", "gzip, identity");
+#if BESTHTTP_DISABLE_GZIP
+              AddHeader("Accept-Encoding", "identity");
+#else
+              AddHeader("Accept-Encoding", "gzip, identity");
+#endif
 
             #if !BESTHTTP_DISABLE_PROXY
             if (HasProxy && !HasHeader("Proxy-Connection"))
