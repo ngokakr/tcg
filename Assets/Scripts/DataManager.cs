@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 using CardData = SystemScript.CardData;
 using CardParam =SystemScript.CardParam;
 using LitJson;
@@ -19,6 +20,8 @@ public class DataManager : SingletonMonoBehaviour<DataManager> {
 
 	//セーブデータ
 	public string PlayerName;
+	public int uid;
+	public string Password;
 	public int Coin;
 	public int Gold;
 	public int Piece;
@@ -44,6 +47,10 @@ public class DataManager : SingletonMonoBehaviour<DataManager> {
 
 	//タッチ無効化用
 	public GameObject[] TouchDisableObj;
+
+	//プレイヤーパラメータ表示
+	public Text PlayerNameText;
+	public Text PlayerPointText;
 
 	//サウンド関連
 	public AudioSource BGMSource;
@@ -98,6 +105,21 @@ public class DataManager : SingletonMonoBehaviour<DataManager> {
 		AppVersion = Application.version;
 		#endif
 	}
+
+	public void RefreshData () {
+		PlayerNameText.text = PlayerName;
+		PlayerPointText.text = string.Format ("{0}Coin {1}Gold", Coin, Gold);
+	}
+
+	public static void ChangePoint (int kind,int point) {
+		if (kind == 0) {
+			Instance.Coin += point;
+
+		} else if (kind == 1){
+			Instance.Gold += point;
+		}
+	}
+
 	public class Box {
 		public static List<CardParam> GetCardParam () {
 			return SystemScript.cdTocp (DataManager.Instance.box);
@@ -405,7 +427,8 @@ public class DataManager : SingletonMonoBehaviour<DataManager> {
 			box = new List<CardData> ();
 			for (int i = 0; i < boxList.Count; i++ ){
 				List<int> l = boxList [i];
-				CardData cd = new CardData ().Set (l[0],l[1],l[2],l[3],l[4]);
+				CardData cd = new CardData ().FromList (l);
+//				CardData cd = new CardData ().Set (l[0],l[1],l[2],l[3],l[4]);
 				box.Add (cd);
 			}
 
@@ -415,12 +438,29 @@ public class DataManager : SingletonMonoBehaviour<DataManager> {
 		//デッキ
 		string PrefsDeck = SaveData.GetString ("Deck", "");
 		if (PrefsBox != "") {
-			decks = JsonMapper.ToObject<List<List<CardData>>>(PrefsDeck);
+			decks = new List<List<CardData>> ();
+			List<List<List<int>>> decksList = JsonMapper.ToObject<List<List<List<int>>>>(PrefsDeck);
+
+			for (int i = 0; i < decksList.Count; i++ ){
+				List<List<int>> deckList = decksList [i];
+				List<CardData> deck = new List<CardData> ();
+				for (int i2 = 0; i2 < deckList.Count; i2++ ){
+					List<int> cardList = deckList [i2];
+					CardData cd = new CardData ().FromList (cardList);
+					deck.Add (cd);
+				}
+				decks.Add (deck);
+					 
+			}
+		
+//			decks = JsonMapper.ToObject<List<List<CardData>>>(PrefsDeck);
 		} else {
 			Debug.LogError ("Deck is Null");
 		}
 		//ユーザー名
 		PlayerName = SaveData.GetString("Name","");
+		Password = SaveData.GetString ("Password", "no");
+		uid = SaveData.GetInt ("uid", 0);
 		Coin = SaveData.GetInt ("Coin", 0);
 		Gold = SaveData.GetInt ("Gold", 0);
 		UseDeck = SaveData.GetInt ("UseDeck", 0);
@@ -430,14 +470,30 @@ public class DataManager : SingletonMonoBehaviour<DataManager> {
 		List<List<int>> boxList = new List<List<int>>();
 		for (int i = 0; i < box.Count; i++ ){
 			CardData cd = box [i];
-			List<int> item = new List<int> (){cd.Atr,cd.ID,cd.LV,cd.Count,cd.uid};
+			List<int> item = cd.ToList ();
+//			List<int> item = new List<int> (){cd.Atr,cd.ID,cd.LV,cd.Count,cd.uid};
 			boxList.Add (item);
 		}
 		SaveData.SetString ("Box" ,JsonMapper.ToJson (boxList));
+
 		//デッキ
-		SaveData.SetString("Deck",JsonMapper.ToJson(decks));
+		List<List<List<int>>> deckList = new List<List<List<int>>>();
+		for (int i = 0; i < decks.Count; i++ ){
+			List<List<int>> deckL = new List<List<int>> ();
+			var deckData = decks [i];
+			for (int i2 = 0; i2 < deckData.Count; i2++ ){
+				CardData cd = deckData [i2];
+				List<int> list = cd.ToList ();
+				deckL.Add (list);
+			}
+			deckList.Add (deckL);
+		}
+		SaveData.SetString("Deck",JsonMapper.ToJson(deckList));
+
 		//そのた
 		SaveData.SetString("Name",PlayerName);
+		SaveData.SetString ("Password", Password);
+		SaveData.SetInt("uid",uid);
 		SaveData.SetInt ("Coin",Coin);
 		SaveData.SetInt ("Gold",Gold);
 		SaveData.SetInt ("UseDeck",UseDeck);

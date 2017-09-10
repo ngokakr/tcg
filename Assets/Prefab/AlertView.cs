@@ -20,22 +20,23 @@ public class AlertView : MonoBehaviour {
 	private Text Description;
 	public GameObject Node;
 	public GameObject Delegate;
+	public GameObject CancelButton;
 
 	private bool Selected = false;
 
 	/// <summary>
 	/// _Scene Title/0 Menu/1 Battle/2
 	/// </summary>
-	static public AlertView Make (int _tag,string _Title,string _Description, string[] _choices, GameObject _delegate,int _Scene,bool _warn = false) {
+	static public AlertView Make (int _tag,string _Title,string _Description, string[] _choices, GameObject _delegate,int _Scene,bool _CantCancel = false) {
 		//タップ無効化
 		DataManager.Instance.TouchDisable (_Scene);
 		//アラート生成
 		AlertView _alt = Instantiate (DataManager.Instance.AlertPrefab);
 		_alt.transform.SetParent(DataManager.Instance.AlertParents[_Scene]);
-		_alt.Show (_delegate, _Title, _Description, _choices, _warn,_tag);
+		_alt.Show (_delegate, _Title, _Description, _choices,_tag,_CantCancel);
 		return _alt;
 	}
-	public void Show (GameObject _delegate,string _Title,string _Description, string[] _choices,bool _warn,int _tag) {
+	public void Show (GameObject _delegate,string _Title,string _Description, string[] _choices,int _tag,bool _CantCancel) {
 
 
 		//フラグ
@@ -50,11 +51,11 @@ public class AlertView : MonoBehaviour {
 		Title.text = _Title;
 		Description.text = _Description;
 
-		//タイトル色
-		if (_warn) {
-			TitleImg.color = Color.red;
-		}
-
+//		//タイトル色
+//		if (_warn) {
+//			TitleImg.color = Color.red;
+//		}
+//
 		//自動サイズ調整
 		GetComponent<RectTransform> ().localPosition = Vector3.zero;
 		Vector2 size = GetComponent<RectTransform> ().sizeDelta;
@@ -64,6 +65,8 @@ public class AlertView : MonoBehaviour {
 		size = new Vector2 (size.x,height);
 //		Debug.Log (size);
 		GetComponent<RectTransform> ().sizeDelta = size;
+
+
 
 		//ノード作成
 		int childCount = Content.transform.childCount;
@@ -79,6 +82,12 @@ public class AlertView : MonoBehaviour {
 			node.transform.SetParent(Content.transform);
 			node.transform.localScale = Vector3.one;
 		}
+
+		//キャンセルボタンを押せなくする
+		if (_CantCancel) {
+			Destroy (CancelButton);
+		}
+
 		//alertアニメーション
 		OpenClose(true);
 	}
@@ -112,7 +121,7 @@ public class AlertView : MonoBehaviour {
 
 
 	}
-	void OpenClose (bool _Open) {
+	public void OpenClose (bool _Open) {
 		float Duration = 0.3f;
 		if (_Open) {
 			transform.GetComponent<RectTransform>().localScale = new Vector3(1f,0,1f);

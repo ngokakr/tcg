@@ -54,6 +54,18 @@ public class SystemScript : MonoBehaviour {
 		public void ChangeCount (int _Delta = 1) {
 			Count += _Delta;
 		}
+
+		public List<int> ToList () {
+			return new List<int> (){ ID, LV, Count };
+		}
+		public CardData FromList (List<int> data) {
+			Atr = 0;
+			ID = data [0];
+			LV = data [1];
+			Count = data [2];
+			uid = -1;
+			return this;
+		}
 	}
 	[System.Serializable]
 	public struct CardParam {

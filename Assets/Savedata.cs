@@ -381,7 +381,7 @@ public class SaveData
 		{
 			
 			using (StreamWriter writer = new StreamWriter (path + fileName, false, Encoding.GetEncoding ("utf-8"))) {	
-				Debug.Log (path);
+				Debug.Log ("Saved! : "+path);
 				var serialDict = new Serialization<string, string> (saveDictionary);
 				serialDict.OnBeforeSerialize ();
 				string dictJsonString = JsonUtility.ToJson (serialDict);

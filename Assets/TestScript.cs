@@ -4,9 +4,22 @@ using System.Collections.Generic;
 using MiniJSON;
 using LitJson;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using BestHTTP;
 using Carddata = SystemScript.CardData;
+
+public interface IRegister :  IEventSystemHandler {
+	void OnRegister(bool success);//TestScriptからデータをとる。
+}
+public interface ILogin :  IEventSystemHandler {
+	void OnLogin(bool success);//TestScriptからデータをとる。
+}
+public interface IBuy :  IEventSystemHandler {
+	void OnBuy(List<object> cid);//TestScriptからデータをとる。
+}
+
+
 
 public class TestScript : SingletonMonoBehaviour<TestScript> {
 	public bool Reset = false;
@@ -16,6 +29,7 @@ public class TestScript : SingletonMonoBehaviour<TestScript> {
 	public bool BuyTrigger = false;
 	public string UserName = "";
 	public string Password = "";
+	public GameObject Delegate;
 
 	public string URL;
 	public string Path;
@@ -178,17 +192,17 @@ public class TestScript : SingletonMonoBehaviour<TestScript> {
 		}
 		if (RegistTrigger) {
 			RegistTrigger = false;
-			Regist();
+			Register();
 		}
 
 		if (LoginTrigger) {
 			LoginTrigger = false;
-			Login();
+			Login(playerJson.uid,Password);
 		}
 
 		if (BuyTrigger) {
 			BuyTrigger = false;
-			Buy();
+			Buy("coin",1);
 		}
 	}
 
@@ -197,39 +211,50 @@ public class TestScript : SingletonMonoBehaviour<TestScript> {
 		request.Send ();
 	}
 
-	public void Regist () {
-		HTTPRequest request = new HTTPRequest (new Uri (URL+"users/"), HTTPMethods.Post, OnRegist);
+	public void Register () {
+		Debug.Log ("Register");
+		HTTPRequest request = new HTTPRequest (new Uri (URL+"users/"), HTTPMethods.Post, OnRegister);
 		request.AddField ("name", UserName);
 		Password = StringUtils.GeneratePassword (30);
 		request.AddField ("password",Password);
 		request.Send ();
 	}
 
-	public void Login () {
+	public void Login (int uid,string password) {
+		Debug.Log ("Login");
 		HTTPRequest request = new HTTPRequest (new Uri (URL+"login/"), HTTPMethods.Post, OnLogin);
-		request.AddField ("uid", playerJson.uid+"");
-		request.AddField ("password",Password);
+		request.AddField ("uid", uid+"");
+		request.AddField ("password",password);
 		request.Send ();
 	}
 
-	public void Buy () {
-		HTTPRequest request = new HTTPRequest (new Uri (URL+"shop/"), HTTPMethods.Post, OnRegist);
-		request.AddField ("kind", "coin");
-		request.AddField ("count","1");
+	public void Buy (string kind,int count) {
+		HTTPRequest request = new HTTPRequest (new Uri (URL+"shop/"), HTTPMethods.Post, OnBuy);
+		request.AddField ("kind", kind);
+		request.AddField ("count",count.ToString());
 		request.Send ();
 	}
 
 
 
-	void OnRegist (HTTPRequest request, HTTPResponse response) {
+	void OnRegister (HTTPRequest request, HTTPResponse response) {
 		Debug.Log("Request Finished! Text received: " + response.DataAsText);
 
 		var main = GetDic (response.DataAsText);
 		int status = GetStatus (main);
-		if (status == 200 && DataType(main) == "login") {
-			//登録成功
+		if (DataType(main) == "login") {
+			bool success = false;
 
-			SetLoginData(main);
+			//登録成功
+			if (status == 200) {
+				success = true;
+				SetLoginData (main);
+			}
+			ExecuteEvents.Execute<IRegister>(
+				target: Delegate, // 呼び出す対象のオブジェクト
+				eventData: null,  // イベントデータ（モジュール等の情報）
+				functor: (recieveTarget,y)=>recieveTarget.OnRegister(success)); // 操作
+			
 		} else {
 			//登録失敗
 		}
@@ -242,13 +267,41 @@ public class TestScript : SingletonMonoBehaviour<TestScript> {
 
 		var main = GetDic (response.DataAsText);
 		int status = GetStatus (main);
-		if (status == 200 && DataType (main) == "login") {
-			SetLoginData (main);
+		if (DataType (main) == "login") {
+			bool success = false;
+			//登録成功
+			if (status == 200) {
+				success = true;
+				SetLoginData (main);
+			}
+			ExecuteEvents.Execute<ILogin>(
+				target: Delegate, // 呼び出す対象のオブジェクト
+				eventData: null,  // イベントデータ（モジュール等の情報）
+				functor: (recieveTarget,y)=>recieveTarget.OnLogin(success)); // 操作
+			
 		}
 	}
 
 	void OnBuy (HTTPRequest request, HTTPResponse response) {
 		Debug.Log("Request Finished! Text received: " + response.DataAsText);
+		var main = GetDic (response.DataAsText);
+		int status = GetStatus (main);
+		if (DataType (main) == "addcards") {
+			if (status == 200) {
+				var data = GetDic ((string)main ["data"]);
+				List<object> x = (List<object>)data ["ids"];//購入したカード
+
+				ExecuteEvents.Execute<IBuy> (
+					target: Delegate, // 呼び出す対象のオブジェクト
+					eventData: null,  // イベントデータ（モジュール等の情報）
+					functor: (recieveTarget, y) => recieveTarget.OnBuy (x)); // 操作
+			}
+		} else {
+			ExecuteEvents.Execute<IBuy> (
+				target: Delegate, // 呼び出す対象のオブジェクト
+				eventData: null,  // イベントデータ（モジュール等の情報）
+				functor: (recieveTarget, y) => recieveTarget.OnBuy (null)); // 操作
+		}
 	}
 
 	void SetLoginData (Dictionary<string,object> main) {

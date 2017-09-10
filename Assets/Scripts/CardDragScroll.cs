@@ -97,7 +97,7 @@ public class CardDragScroll : ScrollRect ,IPointerDownHandler,IPointerUpHandler{
 	//元の位置に戻る。
 	void RepositionMove () {
 		if (YDrag) {//yドラッグされていた時
-			t.localPosition = new Vector3 (t.localPosition.x, DefaultY, 0);
+			t.localPosition = new Vector3 (t.localPosition.x, 0, 0);
 			ExecuteEvents.Execute<ICardDragHandler> (
 				target: Delegate, // 呼び出す対象のオブジェクト
 				eventData: null,  // イベントデータ（モジュール等の情報）
