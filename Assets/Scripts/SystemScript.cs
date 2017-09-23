@@ -11,6 +11,9 @@ using UnityEngine.EventSystems;
 public interface IRecieveMessage :  IEventSystemHandler {
 	void OnRecieve(int _num,int _tag);
 }
+public interface IRecieveInput :  IEventSystemHandler {
+	void OnInput(int status,string data,int _tag);
+}
 
 public interface ICardDragHandler : IEventSystemHandler {
 	
@@ -691,5 +694,23 @@ public class SystemScript : MonoBehaviour {
 		#else
 		Application.OpenURL(url);
 		#endif
+	}
+
+		private const string PASSWORD_CHARS = 
+		"0123456789abcdefghijklmnopqrstuvwxyz";
+
+		public static string GeneratePassword( int length )
+		{
+		var sb  = new System.Text.StringBuilder( length );
+		var r   = new System.Random();
+
+		for ( int i = 0; i < length; i++ )
+		{
+		int     pos = r.Next( PASSWORD_CHARS.Length );
+		char    c   = PASSWORD_CHARS[ pos ];
+		sb.Append( c );
+		}
+
+		return sb.ToString();
 		}
 }

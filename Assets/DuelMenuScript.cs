@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class DuelMenuScript : MonoBehaviour,IRecieveMessage {
+public class DuelMenuScript : MonoBehaviour,IRecieveMessage,IRecieveInput {
 	public BattleScript battleScript;
 
 	// Use this for initialization
@@ -42,21 +42,45 @@ public class DuelMenuScript : MonoBehaviour,IRecieveMessage {
 //				SceneManager.Instance.ToBattle (1);
 			}
 			break;
+
+		case 4:
+			{
+				AlertView.Make (4,"ルームマッチ","特定のプレイヤーと対戦します",new string[]{"ルームを作る","ルームに入る"}, gameObject,1);
+			}
+			break;
 		}
 	}
 	public void OnRecieve(int _num,int _tag){
 		if (_num == -1 || _tag == -1)
 			return;
-		if (_tag == 0 || _tag == 1) {
+		if (_tag == 0 || _tag == 1) {//ランクマッチ
 			if (_num == 0 && _tag != -1) {
-				AlertView.Make (-1, "オンライン対戦", "対戦相手を探しています...", new string[]{ }, gameObject, 1);
-				OnlineManager.Instance.Matching ();
-
-//			SceneManager.Instance.ToBattle (_tag);
+				OnlineManager.Instance.Matching (OnlineManager.BattleMode.RANK,null);
+				DataManager.Instance.TouchDisable(1);
 			}
-		} else if (_tag == 3) {
-			//テストマッチ
-			SceneManagerx.Instance.ToTestMatch(_num);
+		} else if (_tag == 3) {//テストマッチ
+			SceneManagerx.Instance.ToTestMatch (_num);
+		} else if (_tag == 4) {//ルームマッチ
+			if (_num == 0) {
+				//ルーム作成
+				OnlineManager.Instance.Matching(OnlineManager.BattleMode.ROOM,null);
+				DataManager.Instance.TouchDisable(1);
+			} else {
+				//ルーム入室
+				AlertView.MakeInput (0, "ルームマッチ", "5桁のルームIDを入力してください", gameObject, 1);
+			}
+		}
+	}
+	public void OnInput(int status,string data,int _tag){
+		if (status == -1) {
+			return;
+		}
+		int x = 0;
+		int.TryParse (data,out x);
+		if (10000 <= x && x <= 99999) {
+			OnlineManager.Instance.Matching (OnlineManager.BattleMode.ROOM, data);
+		} else {
+			AlertView.MakeInput (0, "ルームマッチ", "5桁のルームIDを入力してください", gameObject, 1);
 		}
 	}
 }

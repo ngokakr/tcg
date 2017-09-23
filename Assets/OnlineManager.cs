@@ -12,12 +12,21 @@ public class OnlineManager : SingletonMonoBehaviour<OnlineManager> {
 
 	SocketManager Manager;
 	BattleScript battleScript;
-
-	enum NetMode {
+	public PunBattle punButtle;
+	public enum NetMode {
 		PUN,
 		NODE,
 	}
-	NetMode netMode;
+	public enum BattleMode
+	{
+
+		NONE,
+		RANK,
+		ROOM,
+	}
+	public BattleMode battleMode;
+
+	public NetMode netMode;
 
 	enum Status {
 		DISCONNECTED,
@@ -55,38 +64,23 @@ public class OnlineManager : SingletonMonoBehaviour<OnlineManager> {
 
 			Manager.Open ();
 		} else {
-			//PUN
-			PhotonNetwork.ConnectUsingSettings(DataManager.Instance.AppVersion);
-
-
 		}
 	}
 	//マッチング開始
-	public void Matching () {
+	public void Matching (BattleMode mode,string roomKeyword) {
 		if (netMode == NetMode.NODE) {
+			//node
 			List<CardParam> deck = SystemScript.cdTocp (DataManager.Deck.GetDeckData (DataManager.Instance.UseDeck));
 			deck = SystemScript.ShuffleCP (deck);
 			Manager ["/pvp"].Emit ("toLobby", new object[] { JsonMapper.ToJson (deck) });
 		} else {
-			
-
+			//pun
+			battleMode = mode;
+			punButtle.roomKeyword = roomKeyword;
+			punButtle.Matching(mode,roomKeyword);
 
 		}
 	}
-	//マッチング開始(Photon)
-	public void RandomMatching (int mode) {
-		PhotonNetwork.JoinRandomRoom ();
-//		PhotonNetwork.JoinRoom("@random@"+mode);
-//		PhotonNetwork.reco
-	}
-
-	//チャット
-	[PunRPC]
-	void ChatMessage(string a, string b)
-	{
-		Debug.Log("ChatMessage " + a + " " + b);
-	}
-
 
 	public void SendDeck (List<CardParam> _deck) {
 		Debug.Log( JsonMapper.ToJson (_deck));

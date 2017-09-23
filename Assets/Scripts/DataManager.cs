@@ -41,9 +41,12 @@ public class DataManager : SingletonMonoBehaviour<DataManager> {
 	public Color[] CardBackColors;
 	public Color[] AtcChaDef; 
 	public int[] MaxLV;
+	public int[] DefaultLP;
+	public int[] DefaultSP;
 
 	//プレハブ
 	public AlertView AlertPrefab;
+	public AlertView InputAlertPrefab;
 
 	//アラートようの親
 	public Transform[] AlertParents;

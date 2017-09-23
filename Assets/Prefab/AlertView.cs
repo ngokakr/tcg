@@ -17,12 +17,17 @@ public class AlertView : MonoBehaviour {
 	[SerializeField]
 	private Text Title;
 	[SerializeField]
+	private Text Placeholder;
+	[SerializeField]
 	private Text Description;
 	public GameObject Node;
 	public GameObject Delegate;
 	public GameObject CancelButton;
 
 	private bool Selected = false;
+	string inputText = "";
+
+
 
 	/// <summary>
 	/// _Scene Title/0 Menu/1 Battle/2
@@ -36,6 +41,21 @@ public class AlertView : MonoBehaviour {
 		_alt.Show (_delegate, _Title, _Description, _choices,_tag,_CantCancel);
 		return _alt;
 	}
+
+	/// <summary>
+	/// 文字入力用アラート _Scene Title/0 Menu/1 Battle/2
+	/// </summary>
+	static public AlertView MakeInput (int _tag,string _Title,string _Description, GameObject _delegate,int _Scene,bool _CantCancel = false) {
+		//タップ無効化
+		DataManager.Instance.TouchDisable (_Scene);
+		//アラート生成
+		AlertView _alt = Instantiate (DataManager.Instance.InputAlertPrefab);
+		_alt.transform.SetParent(DataManager.Instance.AlertParents[_Scene]);
+		_alt.ShowInput (_delegate, _Title, _Description,_tag,_CantCancel);
+		return _alt;
+
+	}
+
 	public void Show (GameObject _delegate,string _Title,string _Description, string[] _choices,int _tag,bool _CantCancel) {
 
 
@@ -91,6 +111,36 @@ public class AlertView : MonoBehaviour {
 		//alertアニメーション
 		OpenClose(true);
 	}
+
+	public void ShowInput (GameObject _delegate,string _Title,string _Description,int _tag,bool _CantCancel) {
+
+
+		//フラグ
+		Selected = false;
+		//タグ
+		Tag = _tag;
+		//デリゲート
+		Delegate =_delegate;
+		//SE
+		DataManager.Instance.SEPlay(4);
+		//テキスト変更
+		Title.text = _Title;
+		Description.text = _Description;
+		//キャンセルボタンを押せなくする
+		if (_CantCancel) {
+			Destroy (CancelButton);
+		}
+		GetComponent<RectTransform> ().localPosition = Vector3.zero;
+
+		//alertアニメーション
+		OpenClose(true);
+	}
+
+	public void TextInput (string str) {
+		Debug.Log (str);
+		inputText = str;
+		
+	}
 	// Use this for initialization
 	void Start () {
 		
@@ -113,13 +163,21 @@ public class AlertView : MonoBehaviour {
 		//alertアニメーション
 		OpenClose (false);
 
-		// デリゲート先のOnRecieveに送る
-		ExecuteEvents.Execute<IRecieveMessage>(
-			target: Delegate, // 呼び出す対象のオブジェクト
-			eventData: null,  // イベントデータ（モジュール等の情報）
-			functor: (recieveTarget,y)=>recieveTarget.OnRecieve(_num,Tag)); // 操作
+		if (Content != null) {//
 
+			// デリゲート先のOnRecieveに送る
+			ExecuteEvents.Execute<IRecieveMessage> (
+				target: Delegate, // 呼び出す対象のオブジェクト
+				eventData: null,  // イベントデータ（モジュール等の情報）
+				functor: (recieveTarget, y) => recieveTarget.OnRecieve (_num, Tag)); // 操作
 
+		} else {//Input
+
+			ExecuteEvents.Execute<IRecieveInput> (
+				target: Delegate, // 呼び出す対象のオブジェクト
+				eventData: null,  // イベントデータ（モジュール等の情報）
+				functor: (recieveTarget, y) => recieveTarget.OnInput (_num,inputText, Tag)); // 操作
+		}
 	}
 	public void OpenClose (bool _Open) {
 		float Duration = 0.3f;

@@ -94,7 +94,7 @@ public class SceneManagerx : SingletonMonoBehaviour<SceneManagerx> {
 			, SystemScript.cdTocp (DataManager.Deck.GetDeckData (useDeck)), SystemScript.GetEnemyDeck (num));
 		}
 	}
-	public void ToBattleOnline (int _battleType,int[] _LPs,int[] _SPs,List<CardParam> _player,List<CardParam> _enemy,int _initiative = -1) {
+	public void ToBattleOnline (OnlineManager.BattleMode _battleMode,int[] _LPs,int[] _SPs,List<CardParam> _player,List<CardParam> _enemy,int _initiative = -1) {
 		ChangeScene (2);
 		battleScript.gameObject.SetActive (true);
 		StartCoroutine( DataManager.Instance.BGMFade(2,FadeWait));
