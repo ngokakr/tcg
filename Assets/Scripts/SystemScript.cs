@@ -20,6 +20,8 @@ public interface ICardDragHandler : IEventSystemHandler {
 	void OnHorizontal (int _value, int _num, int _tag);
 }
 
+
+
 public class SystemScript : MonoBehaviour {
 
 	public enum ShowType {
@@ -128,8 +130,8 @@ public class SystemScript : MonoBehaviour {
 			Pass = -1;
 			return this;
 		}
-		public CardParam Set (int _atr,int _id,int _lv,int _count) {
-			CardData cd = new CardData ().Set (_atr, _id, _lv, _count);
+		public CardParam Set (int _atr,int _id,int _lv,int _count,int _Unique_id = -1) {
+			CardData cd = new CardData ().Set (_atr, _id, _lv, _count,_Unique_id);
 			return Set (cd);
 		}
 		public CardParam Set (CardData _cd) {
@@ -150,8 +152,14 @@ public class SystemScript : MonoBehaviour {
 			}
 			Name = param.name;
 			Cost = param.cost;
-//			Power = AdjustedPower(Rea,param.power,LV);
-			Power = param.power;
+
+			if (DataManager.Instance.LVSystem) {
+				int[] MaxLv = { 7, 6, 5, 4 };
+				Power = param.power - MaxLv [Rea] + LV;
+			} else {
+				Power = param.power;
+			}
+//			Power = param.power;
 			SkillTexts = new List<string> ();
 			SkillScript = new List<string> ();
 			Effect = new List<int> ();
@@ -159,8 +167,19 @@ public class SystemScript : MonoBehaviour {
 
 			for (int i = 0; i < param.skill.Length; i++ ){
 				if (param.skill [i] != "") {
-					SkillTexts.Add (param.skill [i]);
-					SkillScript.Add (param.script [i]);
+					string skillText = param.skill [i];
+					string script = param.script [i];
+					string inRound = GetRoundBrackets (skillText);
+					if (script.Contains ("{0}")) {
+						script = string.Format (script,inRound);
+						//絶対値にする。
+						skillText = skillText.Replace ("(" + inRound + ")", Mathf.Abs (int.Parse (inRound)) + "");
+					}
+
+
+
+					SkillTexts.Add (skillText);
+					SkillScript.Add (script);
 				}
 			}
 			for (int i = 0; i < param.effect.Length; i++ ){
@@ -173,6 +192,7 @@ public class SystemScript : MonoBehaviour {
 			}
 			return this;
 		}
+
 	}
 
 	/// <summary>
@@ -224,6 +244,18 @@ public class SystemScript : MonoBehaviour {
 		}
 		return lcp;
 	}
+
+	//強化に必要な枚数
+	public static int needPoint (CardParam cp) {
+//		int[] ur = { 2, 4, 10 };
+//		int[] sr = { 2, 4, 10, 20 };
+//		int[] r = { 2, 4, 10, 20, 50 };
+		int[] n = { 2, 4, 10, 20, 50, 100 };
+		return n [cp.LV-1];
+	}
+
+
+
 	//Dictionaryからカードを取り出すキー
 	public static string GetKey(int _atr,int _ID) {
 		return _atr + "_" + _ID;
@@ -351,6 +383,9 @@ public class SystemScript : MonoBehaviour {
 				if(SkillStr != "")//かいぎょう
 					SkillStr += "\n";
 				SkillStr += text;//追加
+				if (skillsScript [i] == "") {
+					SkillStr += "<color=#ff0000>(未実装)</color>";
+				}
 			}
 		}
 		return SkillStr;
@@ -476,6 +511,12 @@ public class SystemScript : MonoBehaviour {
 			_skillText = RemoveKeyword(_skillText,"ot");
 		}
 
+//		//括弧を削除
+//		string inRound = GetRoundBrackets(_skillText);
+//		if(inRound != ""){
+//			_skillText = _skillText.Replace ("(", "");
+//			_skillText = _skillText.Replace (")", "");
+//		}
 
 		if (_useSkill) {
 			text += "<color=#00ff00>"+ _skillText+"</color>";
@@ -491,6 +532,7 @@ public class SystemScript : MonoBehaviour {
 					text = text.Replace (n, "<color=#ffff00>" + n + "</color>");
 			}
 		}
+
 		return text;
 	}
 

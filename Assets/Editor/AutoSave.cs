@@ -27,6 +27,7 @@ public class AutoSave
 					EditorApplication.SaveScene ();
 				}
 				IsManualSave = true;
+
 			}
 			isChangedHierarchy = false;
 		};

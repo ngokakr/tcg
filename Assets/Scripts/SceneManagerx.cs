@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using DG.Tweening;
 using CardParam = SystemScript.CardParam;
-public class SceneManager : SingletonMonoBehaviour<SceneManager> {
+public class SceneManagerx : SingletonMonoBehaviour<SceneManagerx> {
 	public GameObject[] Scenes;
 	public Image FadeImg;
 	public float FadeWait;
@@ -80,6 +80,19 @@ public class SceneManager : SingletonMonoBehaviour<SceneManager> {
 //				,SystemScript.cdTocp( DataManager.Deck.GetDeckData (useDeck)),SystemScript.cdTocp( DataManager.Deck.GetDeckData (useDeck)));
 //		}
 		
+	}
+
+	public void ToTestMatch (int num) {
+		ChangeScene (2);
+		StartCoroutine( DataManager.Instance.BGMFade(2,FadeWait));
+		int useDeck = DataManager.Instance.UseDeck;
+		if (num == 5) {
+			battleScript.BattleStartOffline (new int[]{ 50, 50 }, new int[]{ 10, 200 }
+				, SystemScript.cdTocp (DataManager.Deck.GetDeckData (useDeck)), SystemScript.GetEnemyDeck (num));
+		} else {
+			battleScript.BattleStartOffline (new int[]{ 50, 50 }, new int[]{ 10, 10 }
+			, SystemScript.cdTocp (DataManager.Deck.GetDeckData (useDeck)), SystemScript.GetEnemyDeck (num));
+		}
 	}
 	public void ToBattleOnline (int _battleType,int[] _LPs,int[] _SPs,List<CardParam> _player,List<CardParam> _enemy,int _initiative = -1) {
 		ChangeScene (2);

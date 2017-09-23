@@ -12,40 +12,47 @@ public class OtherView : MonoBehaviour,IRecieveMessage {
 				AlertView.Make (0,"バージョン確認","v"+DataManager.Instance.AppVersion,new string[]{"OK"}, gameObject,1);
 			}
 			break;
-		case 1://プレイヤー情報
-			{
-				
-			}
-			break;
-		case 2://公式サイト
-			{
-			}
-			break;
+//		case 1://プレイヤー情報
+//			{
+//				
+//			}
+//			break;
+//		case 2://公式サイト
+//			{
+//			}
+//			break;
 		case 3://著作権表記
 			{
 				AlertView.Make (3,"著作権表記","タップで外部サイトへ",Copyright, gameObject,1);
 			}
 			break;
-		case 4://利用規約
-			{
-				
-			}
-			break;
-		case 5://ヘルプ
-			{
-				AlertView.Make (0,"ヘルプ","現在作成中のコンテンツです。",new string[]{"OK"}, gameObject,1);
-			}
-			break;
+//		case 4://利用規約
+//			{
+//				
+//			}
+//			break;
+//		case 5://ヘルプ
+//			{
+//				AlertView.Make (0,"ヘルプ","現在作成中のコンテンツです。",new string[]{"OK"}, gameObject,1);
+//			}
+//			break;
 		case 6://お問い合わせ
 			{
 				AlertView.Make (0,"お問い合わせ","ngokakr@gmail.com",new string[]{"OK"}, gameObject,1);
 			}
 			break;
-		case 7://データ引き継ぎ
+//		case 7://データ引き継ぎ
+//			{
+//				AlertView.Make (0,"データ引き継ぎ","現在作成中",new string[]{"OK"}, gameObject,1);
+//			}
+//			break;
+		default:
 			{
-				AlertView.Make (0,"データ引き継ぎ","現在作成中",new string[]{"OK"}, gameObject,1);
+				AlertView.Make (0,"製作中","現在作成中のコンテンツです。",new string[]{"OK"}, gameObject,1);
 			}
+
 			break;
+
 		}
 	}
 	public void OnRecieve(int _num,int _tag){

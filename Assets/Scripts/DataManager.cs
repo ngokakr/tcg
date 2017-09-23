@@ -13,6 +13,9 @@ using LitJson;
 
 [ExecuteInEditMode]
 public class DataManager : SingletonMonoBehaviour<DataManager> {
+	//スイッチ
+	public bool OfflineMode = false;
+	public bool LVSystem = false;
 
 	//アプリバージョン
 	public string AppVersion;
@@ -179,6 +182,21 @@ public class DataManager : SingletonMonoBehaviour<DataManager> {
 			DataManager.Instance.box [cdnum] = cd;
 			return true;
 		}
+
+		public static void LevelUp (int id) {
+			
+			var boxDat = DataManager.Instance.box;
+			int cdnum = boxDat.FindIndex (x => x.ID == id);
+			CardData cd = boxDat [cdnum];
+
+			int useCount = SystemScript.needPoint (new CardParam ().Set (cd));
+
+			if (useCount <= cd.Count) {
+				cd.Count -= useCount;
+				cd.LV++;
+			}
+			DataManager.Instance.box [cdnum] = cd;
+		}
 //
 //		public static void LevelUpByCard(CardData _Base,CardData _Material) { //カードによる強化
 //			var boxDat = DataManager.Instance.box;
@@ -275,7 +293,7 @@ public class DataManager : SingletonMonoBehaviour<DataManager> {
 			int maxSameName = 3;
 
 			var decks = DataManager.Instance.decks;
-			while (decks.Count <= _deckNum){//デッキ枠が足りてなければ作る。
+			while (decks.Count <= _deckNum || decks.Count < 30){//デッキ枠が足りてなければ作る。
 				decks.Add (new List<CardData>());
 			}
 
@@ -350,6 +368,15 @@ public class DataManager : SingletonMonoBehaviour<DataManager> {
 				_deckNum = DataManager.Instance.UseDeck;
 			return DataManager.Instance.decks[_deckNum];
 		}
+		public static int GetDeckCardCount (int _deckNum = -1) {
+			List<CardData> lcd = GetDeckData (_deckNum);
+			int count = 0;
+			for (int i = 0; i < lcd.Count; i++ ){
+				count += lcd [i].Count;
+			}
+			return count;
+		}
+
 		public static bool ContainCard (int _deckNum,int _atr,int _id) {
 			//デッキに含まれているかどうか
 			return GetCardIndex(DataManager.Instance.decks[_deckNum],_atr,_id) != -1;
@@ -559,7 +586,7 @@ public class DataManager : SingletonMonoBehaviour<DataManager> {
 	}
 	public  class Scene  {
 		public void SceneChange (int _SceneNum){
-			SceneManager.Instance.NewScene (_SceneNum);
+			SceneManagerx.Instance.NewScene (_SceneNum);
 		}
 	}
 

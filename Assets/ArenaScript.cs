@@ -141,7 +141,7 @@ public class ArenaScript : MonoBehaviour,IRecieveMessage{
 	public void OnRecieve(int _num,int _tag){
 //		Debug.Log (_num);
 		if (_num == 0) {
-			SceneManager.Instance.ToCPUArenaBattle (selectRanker,_num);
+			SceneManagerx.Instance.ToCPUArenaBattle (selectRanker,_num);
 			Debug.Log ("対戦開始");
 		}
 	}

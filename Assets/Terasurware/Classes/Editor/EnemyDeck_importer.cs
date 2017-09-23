@@ -9,7 +9,7 @@ using NPOI.SS.UserModel;
 public class EnemyDeck_importer : AssetPostprocessor {
 	private static readonly string filePath = "Assets/ExcelData/EnemyDeck.xls";
 	private static readonly string exportPath = "Assets/ExcelData/EnemyDeck.asset";
-	private static readonly string[] sheetNames = { "Sheet1","Sheet2", };
+	private static readonly string[] sheetNames = { "Sheet1","Sheet2","Sheet3","Sheet4","Sheet5","Sheet6", };
 	
 	static void OnPostprocessAllAssets (string[] importedAssets, string[] deletedAssets, string[] movedAssets, string[] movedFromAssetPaths)
 	{

@@ -80,6 +80,7 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 	public int Initiative;//先手
 
 	//パラメータ
+	public int[] DefaultLPs;
 	public int[] LPs;
 	public int[] SPs;
 	//フィールド
@@ -154,6 +155,7 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		DECKTOP,
 		DECKBOTTOM,
 		BREAK,
+		CREATURE,
 	}
 	public enum TargetGrave
 	{
@@ -163,10 +165,16 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 	}
 	public enum TargetEffect
 	{
-		FREEZE = 0,
-		BIND = 1,
-		BURN = 2,
-		FLY = 3,
+		FREEZE = 1,
+		BIND = 2,
+		BURN = 3,
+		FLY = 4,
+		THROUGH = 5,
+		STEALTH = 6,
+		GURD_ATTACK = 7,
+		SNIPER = 8,
+		MUST_SUMMON = 9,
+		SEAL_SKILL = 10,
 	}
 	public enum LoadType 
 	{
@@ -191,11 +199,12 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		DAMAGE,
 		HEAL,
 		CHARGE,
+		NOIZ,
 
 		REMOVE_SKILL,
 		TEMP,//setTempCostなどの時に使う
 		TEMP_PARAM_CHANGE,//tempによってパラメータ変更する時。
-		NOIZ,
+
 
 		DRAW,
 
@@ -235,8 +244,12 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 	#region 開始処理
 	public void BattleStartOffline (int[] _LPs,int[] _SPs,List<CardParam> _PDeck,List<CardParam> _EDeck) {
 		BattleStart ();//共通設定
+		DefaultLPs = new int[2];
+		DefaultLPs[0] =  _LPs[0];
+		DefaultLPs[1] = _LPs[1];
 		LPs = _LPs;
 		SPs = _SPs;
+
 		Initiative = Random.Range (0, 2);
 
 		//デッキ展開
@@ -288,6 +301,7 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		StartCoroutine (seq);
 	}
 	void BattleStart () {//CPU、オンライン共通の初期化処理
+		Application.targetFrameRate = 60;
 		Creatures = new List<CardParam> ();
 		Creatures.Add (new CardParam ().Reset());
 		Creatures.Add (new CardParam ().Reset());
@@ -297,6 +311,7 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		EnemyHand = new List<CardParam> ();
 		PlayerGrave = new List<CardParam> ();
 		EnemyGrave = new List<CardParam> ();
+		SelectChoices = new List<CardParam> ();
 		SummonButton.SetActive (false);
 		DiscardButton.SetActive (false);
 		SelectButton.SetActive (false);
@@ -363,10 +378,16 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 			//対戦相手の手札なし
 			SelectingPasses [1] = new int[]{ -2, -2 };
 		}
-		//召喚or破棄するまで無限ループ
+		//使用しない素材はunload
+		Resources.UnloadUnusedAssets();
+		//召喚or破棄するまで無限ループ & 待機中はfps15
+		Judge();
+		Application.targetFrameRate = 30;
 		while(SelectingPasses[0][0] == -1 || SelectingPasses[1][0] == -1){
 			yield return null;
 		}
+		//fpsを戻す
+		Application.targetFrameRate = 60;
 		mode = Mode.NOMAL;
 
 	}
@@ -397,7 +418,7 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		int FirstUser = GetUsers () [0];
 		int SecondUser = GetUsers () [1];
 
-		//常在効果発動
+		//常在効果発動(手札効果、戦場効果)
 		for (int i = 0; i < GetUsers ().Length; i++) {
 			if (ExistCreature (GetUsers () [i])) {
 				Dictionary<string, object> objs = new Dictionary<string, object>();
@@ -495,7 +516,7 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 				int RUser = ReversalUsers () [i];
 				if (ExistCreature (user)) {
 					int role = userCard.Role;
-					if (role == 0 && userCard.Power > 0) {
+					if (role == 0) {
 						yield return StartCoroutine( S_ChangeLP (RUser, -userCard.Power,true,userCard.Pass));
 						yield return StartCoroutine (UseTimingSkill (userCard,"a"));
 
@@ -554,6 +575,11 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		//効果発動
 
 		//勝敗判定
+		Judge();
+	}
+
+	void Judge () {
+		
 		bool PlayerLose = false;
 		bool EnemyLose = false;
 
@@ -582,6 +608,7 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 
 		}
 		if (PlayerLose || EnemyLose) {
+			Application.targetFrameRate = 30;
 			StopAllCoroutines ();
 		}
 	}
@@ -684,7 +711,7 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 						//効果発動
 						if (checkedText != null) {
 							//エフェクト表示
-							if (!doneEffect) {
+							if (!doneEffect && !checkedText.Contains("#")) {
 								doneEffect = true;
 								DetailCard = cp;
 								ShowDetail (i2);
@@ -692,6 +719,9 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 								SEPlay (0);
 								yield return new WaitForSeconds (WaitTime);
 							}
+							//エフェクト無効化フラグ消去
+							checkedText = checkedText.Replace("#","");
+
 							Debug.Log (checkedText as string);
 							var rightCoro = L_DoSkill (cp,checkedText as string, _objs);
 							yield return StartCoroutine(rightCoro);
@@ -713,16 +743,26 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 
 		//when()のチェック
 		while (_text.Contains ("when(")) {
-			bool Reverse = false;
+			bool useSkill = false;
 			string WhenText = L_GetRoundBrackets (_text);
-			//!があれば反転
-			if (WhenText.Contains ("!"))
-				Reverse = true;
-			//条件文を読み取る
-			if (WhenText.Contains (_timing.ToString ()) == Reverse)
+			string[] timings = WhenText.Split ('|');
+			for (int i = 0; i < timings.Length; i++ ){
+				bool Reverse = false;
+				string text = timings [i];
+				//!があれば反転
+				if (text.Contains ("!"))
+					Reverse = true;
+				//条件文を読み取る
+				if (text.Contains (_timing.ToString ()) != Reverse)
+					useSkill = true;
+			}
+
+			if (useSkill) {
+				//条件文部分を消し去る
+				_text = _text.Replace ("when(" + WhenText + ")", "");
+			} else {
 				return null;
-			//条件文部分を消し去る
-			_text = _text.Replace("when("+WhenText+")","");
+			}
 		}
 
 		//if()のチェック
@@ -749,58 +789,63 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		for (int i2 = 0; i2 < cp.SkillTexts.Count; i2++) {
 			string SkillTiming = SystemScript.GetTiming (cp.SkillTexts [i2]);
 			if (SkillTiming == _timing) {
-				//タイミングが一致していれば
-				yield return StartCoroutine (L_SummonSkill (cp, cp.SkillScript [i2],i2));
+				//ラファエル判定
+				int enemyTeam = PlayerOrEnemy(_cp.Pass,true);
+				if (SkillTiming == "s" && ExistCreature(enemyTeam)) {
+					var enemyCre = GetCreature(enemyTeam);
+					if (HasEffect (enemyCre.Pass, TargetEffect.SEAL_SKILL)) {
+						continue;
+					}
+				}
 
+				string _text = cp.SkillScript [i2];
+				int _skillNum = i2;
+				_text = _text.Replace(" ","");
+				if (_text == "") {
+					Debug.LogError ("能力なし");
+					yield break;
+				}
+
+				bool doneEffect = false;
+				//複数発動
+				string[] _Words = _text.Split (';');
+				for (int i = 0; i < _Words.Length; i++ ){
+					string text = _Words [i];
+					if (text == "")
+						continue;
+
+					//条件文を読み取る
+					string checkedText = whenIfCheck(_cp,text,Timing.SUMMON);
+
+					//条件に合うなら発動
+					if (checkedText != null) {
+						text = checkedText;
+					} else
+						continue;
+
+					//データ表示
+					DetailCard = _cp;
+					ShowDetail(_skillNum);
+
+					//エフェクト
+					if (!doneEffect) {
+						doneEffect = true;
+						Effect ("SkillStart", _cp.Pass);
+						SEPlay (2);
+						yield return new WaitForSeconds (WaitTime);
+					}
+
+
+
+					//発動
+					yield return StartCoroutine(L_DoSkill(_cp,text,null));
+
+				}
 			}
 		}
 
 		yield break;
 
-
-	}
-	IEnumerator L_SummonSkill (CardParam _cp,string _text,int _skillNum) {
-		_text = _text.Replace(" ","");
-		if (_text == "") {
-			Debug.LogError ("能力なし");
-			yield break;
-		}
-
-		bool doneEffect = false;
-		//複数発動
-		string[] _Words = _text.Split (';');
-		for (int i = 0; i < _Words.Length; i++ ){
-			string text = _Words [i];
-			if (text == "")
-				continue;
-			
-			//条件文を読み取る
-			string checkedText = whenIfCheck(_cp,text,Timing.SUMMON);
-
-			//条件に合うなら発動
-			if (checkedText != null) {
-				text = checkedText;
-			} else
-				continue;
-
-			//データ表示
-			DetailCard = _cp;
-			ShowDetail(_skillNum);
-
-			//エフェクト
-			if (!doneEffect) {
-				doneEffect = true;
-				Effect ("SkillStart", _cp.Pass);
-				SEPlay (2);
-				yield return new WaitForSeconds (WaitTime);
-			}
-
-
-
-			//発動
-			yield return StartCoroutine(L_DoSkill(_cp,text,null));
-
-		}
 
 	}
 
@@ -1001,11 +1046,6 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		//カッコ内のワードを削除
 		_word = L_RemoveRoundBrakets(_word);
 
-//		string xyz = L_GetRoundBrackets (_word);//括弧内のワード(スクリプト込み)
-//		if (xyz != "" && _InRound != "")
-//			_InRound = L_CheckSkill(_cp,xyz,_SquareDict).PileTop;//括弧内のワード(スクリプト処理済み)
-
-
 		//キーワードで場合分け
 		switch (_word) {
 		//List<cardParam>基本形
@@ -1023,6 +1063,11 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		case "enemy":
 			{
 				ReturnObj= (NotUser);
+			}
+			break;
+		case "defLP":
+			{
+				ReturnObj = DefaultLPs[(int)_lastObj];
 			}
 			break;
 		case "LP":
@@ -1092,12 +1137,21 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 			break;
 		case "myCre":
 			{
-				ReturnObj=( new List<CardParam>(){(GetCreature (user))});
+				if (ExistCreature (user)) {
+					ReturnObj = (new List<CardParam> (){ (GetCreature (user)) });
+				} else {
+					ReturnObj = new List<CardParam> ();
+				}
+
 			}
 			break;
 		case "enemyCre":
 			{
-				ReturnObj=(new List<CardParam>(){(GetCreature (NotUser))});
+				if (ExistCreature (NotUser)) {
+					ReturnObj = (new List<CardParam> (){ (GetCreature (NotUser)) });
+				} else {
+					ReturnObj = new List<CardParam> ();
+				}
 			}
 			break;
 
@@ -1169,9 +1223,11 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		}
 		if (_word.Contains ("isInt(")) {
 			Debug.Log ("isInt:" +( (int)_lastObj == (int)_InRound));
-//			if (_lastObj is List<int>)
-//				ReturnObj = ((List<int>)_lastObj).Contains ((int)_InRound);
 			ReturnObj= ((int)_lastObj == (int)_InRound);
+		}
+		if (_word.Contains ("isNotInt(")) {
+			Debug.Log ("isNotInt:" +( (int)_lastObj != (int)_InRound));
+			ReturnObj= ((int)_lastObj != (int)_InRound);
 		}
 		if(_word.Contains ("isCard(")){
 			if(_lastObj != null)
@@ -1182,10 +1238,16 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		if (_word.Contains ("exist")) {//カード以外は不可
 			ReturnObj= (0 < ((List<CardParam>)_lastObj).Count);
 		}
-		if (_word.Contains ("above(")) {
+		if (_word.Contains ("over(")) {
+			ReturnObj= ((int)_lastObj > (int)_InRound);
+		}
+		if (_word.Contains ("under(")) {
+			ReturnObj= ((int)_lastObj < (int)_InRound);
+		}
+		if (_word.Contains ("orOver(")) {
 			ReturnObj= ((int)_lastObj >= (int)_InRound);
 		}
-		if (_word.Contains ("below(")) {
+		if (_word.Contains ("orUnder(")) {
 			ReturnObj= ((int)_lastObj <= (int)_InRound);
 		}
 
@@ -1206,6 +1268,10 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 			List<CardParam> lcp = _lastObj as List<CardParam>;
 			ReturnObj=( lcp.FindAll(f => f.Groups.Contains((int)_InRound)));
 		}
+		if (_word.Contains ("id(")) {//
+			List<CardParam> lcp = _lastObj as List<CardParam>;
+			ReturnObj=( lcp.FindAll(f => f.ID == (int)_InRound));
+		}
 		if (_word.Contains ("top(")) {//上からx枚
 			List<CardParam> lcp = _lastObj as List<CardParam>;
 			if (lcp.Count <= (int)_InRound) {
@@ -1216,6 +1282,20 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 					topX.Add (lcp [i]);
 				}
 				ReturnObj = topX;
+			}
+		}
+		if (_word.Contains ("top(")) {//上からN枚
+			List<CardParam> lcp = new List<CardParam>();
+			lcp.AddRange (_lastObj as List<CardParam>);
+			int selectCount = (int)_InRound;//取り出す枚数
+			if (selectCount < lcp.Count) {
+				List<CardParam> temp = new List<CardParam>();
+				for (int i2 = 0; i2 < selectCount; i2++ ){
+					temp.Add(lcp [i2]);
+				}
+				ReturnObj= (temp);
+			} else {//全選択
+				ReturnObj= (lcp);
 			}
 		}
 		if(_word.Contains("random(")){//.random(3) これまでの範囲内からX枚ランダムで選択
@@ -1294,64 +1374,75 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		switch (_word) {
 		case "select1":
 			{
+				
 				var lcp = (List<CardParam>)_lastObj;
-				int field = GetPos ((lcp) [0].Pass)[0];
-				List<int> gamen = new List<int>(){ -1, 0, 1 };
 				int targetCount = ((List<CardParam>)_lastObj).Count;
 
-				if (targetCount == 0)//対象なし
+				//対象なし
+				if (targetCount == 0) {
 					ReturnObj = (new List<CardParam> ());
-				else if (targetCount == 1) {//1枚
-					ReturnObj = _lastObj;
-				} else if (gamen.Contains (field)) {//盤面対象
-					//エフェクト表示
-					SetSelectEffect ((List<CardParam>)_lastObj);
-					//モード
-					mode = Mode.SELECT;
-					//選択肢を設定
-					SelectChoices = (List<CardParam>)_lastObj;
-					//選択するまで待つ
-					Select1Pass = -1;
-					while (Select1Pass == -1)
-						yield return null;
-					//選択後、
-					mode = Mode.NOMAL;
-					RemoveAllSelectEffect ();
-					List<CardParam> temp = new List<CardParam> ();
-					temp.Add (GetCard (Select1Pass));
+				} else {
 
-					ReturnObj = (temp);
-				} else {//盤面外(デッキ等)
-					//選択対象をセット
+					int field = GetPos ((lcp) [0].Pass) [0];
+					List<int> gamen = new List<int> (){ -1, 0, 1 };
+
+					if (targetCount == 1) {//1枚
+						ReturnObj = _lastObj;
+					} else if (gamen.Contains (field)) {//盤面対象
+						//エフェクト表示
+						SetSelectEffect ((List<CardParam>)_lastObj);
+						//モード
+						mode = Mode.SELECT;
+						//リフレッシュ
+						Refresh();
+						ImageRefresh ();
+						//選択肢を設定
+						SelectChoices = (List<CardParam>)_lastObj;
+						//選択するまで待つ & fpsセット
+						Application.targetFrameRate = 30;
+						Select1Pass = -1;
+						while (Select1Pass == -1)
+							yield return null;
+						Application.targetFrameRate = 60;
+						//選択後、
+						mode = Mode.NOMAL;
+						RemoveAllSelectEffect ();
+						List<CardParam> temp = new List<CardParam> ();
+						temp.Add (GetCard (Select1Pass));
+
+						ReturnObj = (temp);
+					} else {//盤面外(デッキ等)
+						//選択対象をセット
 //					SelectWindowCards = lcp;
-					SelectChoices = lcp;
-					SelectWindow.SetActive (true);
-					windowOpen = true;
-					SelectCardAndBG.SetActive (true);
+						SelectChoices = lcp;
+						SelectWindow.SetActive (true);
+						windowOpen = true;
+						SelectCardAndBG.SetActive (true);
 
-					SelectWindowArraws [0].color = Color.gray;
+						SelectWindowArraws [0].color = Color.gray;
 
 
-					//その他表示
-					nowPage = 0;//1ページ目
-					RefreshSelectWindow();
+						//その他表示
+						nowPage = 0;//1ページ目
+						RefreshSelectWindow ();
 
-					//モード
-					mode = Mode.SELECT;
+						//モード
+						mode = Mode.SELECT;
 
-					//選択するまで待つ
-					Select1Pass = -1;
-					while (Select1Pass == -1)
-						yield return null;
-					//選択後、
-					SelectWindow.SetActive(false);
-					windowOpen = false;
-					SelectCardAndBG.SetActive (false);
+						//選択するまで待つ
+						Select1Pass = -1;
+						while (Select1Pass == -1)
+							yield return null;
+						//選択後、
+						SelectWindow.SetActive (false);
+						windowOpen = false;
+						SelectCardAndBG.SetActive (false);
 
-					mode = Mode.NOMAL;
-					List<CardParam> temp = new List<CardParam> ();
-					temp.Add (GetCard (Select1Pass));
-					ReturnObj = (temp);
+						mode = Mode.NOMAL;
+						List<CardParam> temp = new List<CardParam> ();
+						temp.Add (GetCard (Select1Pass));
+						ReturnObj = (temp);
+					}
 				}
 			}
 			break;
@@ -1379,6 +1470,8 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 
 			ReturnObj = _lastObj;
 		}
+
+
 //		if(_word.Contains("moveTo(")){//万能移動
 //			int target = (int)_lastObj;
 //
@@ -1392,8 +1485,16 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 			yield return StartCoroutine (S_ChangeRole ((List<CardParam>)_lastObj, (int)_InRound));
 			ReturnObj = ((List<CardParam>)_lastObj);
 		}
+		if(_word.Contains("reset")){
+			yield return StartCoroutine (S_ResetCard ((List<CardParam>)_lastObj,_cp.Pass));
+			ReturnObj = ((List<CardParam>)_lastObj);
+		}
 		if(_word.Contains("addEffect(")){
 			yield return StartCoroutine (S_AddEffect ((List<CardParam>)_lastObj, (int)_InRound,0,_cp.Pass));
+			ReturnObj = ((List<CardParam>)_lastObj);
+		}
+		if(_word.Contains("changeCard(")){
+			yield return StartCoroutine (S_ChangeCard ((List<CardParam>)_lastObj, (int)_InRound,_cp.Pass));
 			ReturnObj = ((List<CardParam>)_lastObj);
 		}
 
@@ -1444,6 +1545,19 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 
 
 		//移動
+
+		if (_word.Contains ("exchange(")) {
+			List<CardParam> lcp = new List<CardParam> ();
+			lcp.AddRange (_lastObj as List<CardParam>);
+			var inr = (List<CardParam>)_InRound;
+			if (lcp!= null && lcp.Count == 1 && inr != null && inr.Count == 1) {
+				//交換成功
+				Debug.Log("ex"+inr[0].Name);
+				yield return StartCoroutine (S_ExchangeCard (lcp[0].Pass,inr[0].Pass));
+			}
+
+			ReturnObj = ((List<CardParam>)_lastObj);
+		}
 		if (_word.Contains ("break")) {
 			List<CardParam> lcp = new List<CardParam> ();
 			lcp.AddRange (_lastObj as List<CardParam>);
@@ -1451,14 +1565,24 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 			yield return StartCoroutine (S_RemoveCard (lcp,TargetField.BREAK));
 			ReturnObj = ((List<CardParam>)_lastObj);
 		}
+		if (_word.Contains ("toCre")) {
+			List<CardParam> lcp = new List<CardParam> ();
+			lcp.AddRange (_lastObj as List<CardParam>);
+			yield return StartCoroutine (S_RemoveCard (lcp, TargetField.CREATURE));
+
+			ReturnObj = ((List<CardParam>)_lastObj);
+		}
+
 		if (_word.Contains ("toHand")) {
 			List<CardParam> lcp = new List<CardParam> ();
 			lcp.AddRange (_lastObj as List<CardParam>);
-			SEPlay (13);
+
+
 			yield return StartCoroutine (S_RemoveCard (lcp,TargetField.BOUNCE));
 
 			ReturnObj = ((List<CardParam>)_lastObj);
 		}
+
 		if (_word.Contains ("toDeckTop")) {
 			List<CardParam> lcp = new List<CardParam> ();
 			lcp.AddRange (_lastObj as List<CardParam>);
@@ -1543,7 +1667,7 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 	}
 
 	public void OnRecieve(int _num,int _tag){
-		SceneManager.Instance.NewScene (1);
+		SceneManagerx.Instance.NewScene (1);
 	}
 	int[] GetUsers(){
 		if (Initiative == 0)
@@ -2084,7 +2208,76 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		if(_Wait)
 		yield return new WaitForSeconds (WaitTime);
 	}
+	IEnumerator S_ResetCard (List<CardParam> _Cards,int invoer) {
+		
+		_Cards = ReloadCard (_Cards);
 
+		for (int i = 0; i < _Cards.Count; i++ ){
+			CardParam cp = _Cards[i];
+
+			//特殊能力チェック
+			Dictionary<string, object> objs = new Dictionary<string, object>();
+			objs.Add ("targetCard",new List<CardParam>{cp});
+			objs.Add ("invoker",new List<CardParam>{GetCard( invoer)});
+			objs.Add ("active", true);
+
+			var coro = CheckCommonSkill (Timing.PARAM_CHANGE, objs);
+			yield return  StartCoroutine (coro);
+			objs = (Dictionary<string, object>)coro.Current;
+
+			cp = ((List<CardParam>)objs ["targetCard"])[0];
+
+			if ((bool)objs ["active"] == false)//無効化フラグ
+				continue;
+
+			//カード変更
+			cp.Set (cp.Atr, cp.ID, cp.LV, cp.Count,cp.uid);
+			UpdateCard (cp);
+
+			//エフェクト表示
+			Effect ("Attack2", cp.Pass);
+			SEPlay (11);
+		}
+		Refresh ();
+		ImageRefresh ();
+		yield return new WaitForSeconds (WaitTime);
+		yield break;
+	}
+	IEnumerator S_ChangeCard (List<CardParam> _Cards,int CardID,int invoer) {
+		_Cards = ReloadCard (_Cards);
+
+		for (int i = 0; i < _Cards.Count; i++ ){
+			CardParam cp = _Cards[i];
+
+			//特殊能力チェック
+			Dictionary<string, object> objs = new Dictionary<string, object>();
+			objs.Add ("targetCard",new List<CardParam>{cp});
+			objs.Add ("invoker",new List<CardParam>{GetCard( invoer)});
+			objs.Add ("active", true);
+
+			var coro = CheckCommonSkill (Timing.PARAM_CHANGE, objs);
+			yield return  StartCoroutine (coro);
+			objs = (Dictionary<string, object>)coro.Current;
+
+			cp = ((List<CardParam>)objs ["targetCard"])[0];
+
+			if ((bool)objs ["active"] == false)//無効化フラグ
+				continue;
+
+			//カード変更
+			cp.Set (cp.Atr, CardID, cp.LV, cp.Count,cp.uid);
+			UpdateCard (cp);
+
+			//エフェクト表示
+			Effect ("Attack2", cp.Pass);
+			SEPlay (11);
+		}
+		Refresh ();
+		ImageRefresh ();
+		yield return new WaitForSeconds (WaitTime);
+		yield break;
+		
+	}
 	IEnumerator S_ChangeParams (List<CardParam> _Cards,TargetParam _TargetParam,int _Point,int _Invoker,CalType _calType) {
 //		Dictionary<string,object> objs = new Dictionary<string, object> ();
 //		objs[""
@@ -2189,6 +2382,7 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 				break;
 			case TargetField.BOUNCE:
 				{
+					SEPlay (13);
 					ToHand (pass);
 				}
 				break;
@@ -2202,6 +2396,12 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 					ToDeck (pass, true);
 				}
 				break;
+			case TargetField.CREATURE:
+				{
+					SEPlay (1);
+					ToCreature (pass,PlayerOrEnemy(pass));
+				}
+				break;
 			}
 		}
 		Refresh ();
@@ -2211,10 +2411,15 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		}
 
 	}
-	void S_ExchangeCard (int _a,int _b) {
+//	void S_ExchangeCard (int _a,int _b) {
+//		ExchangeCard (_a, _b);
+//	}
+	IEnumerator S_ExchangeCard (int _a,int _b) {
 		ExchangeCard (_a, _b);
+		Refresh ();
+		ImageRefresh ();
+		yield return new WaitForSeconds (WaitTime);
 	}
-
 
 	IEnumerator S_AddEffect (List<CardParam> _cards,int _effect,int _effValue,int _Invoker,bool _Wait = true) {
 		_cards = ReloadCard (_cards);
@@ -2403,6 +2608,7 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		if (_a == _b)
 			return;
 
+		SEPlay (1);
 		//
 		int[] aPos = GetPos(_a);
 		int[] bPos = GetPos (_b);
@@ -2416,6 +2622,7 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 			CardParam bCard = ToCards [bPos [1]];
 			FromCards [aPos [1]] = bCard;
 			FromCards [bPos [1]] = aCard;
+			return;
 		}
 
 		//クリーチャー同士
@@ -2424,7 +2631,7 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 			CardParam bCard = Creatures [1];
 			Creatures [1] = aCard;
 			Creatures [0] = bCard;
-
+			return;
 		}
 
 		//クリーチャーとその他で入れ替え
@@ -2439,7 +2646,7 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 			CardParam aCard = FromCards [aPos [1]];
 			CardParam bCard = ToCards [bPos [1]];
 			FromCards [aPos [1]] = bCard;
-			FromCards [bPos [1]] = aCard;
+			ToCards [bPos [1]] = aCard;
 		} else {
 			//クリーチャーが存在しない場合は「場に移動する」と同じ
 			ToCreature(OtherCard.Pass,PlayerOrEnemy(CreaturePass));
@@ -2607,18 +2814,7 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		return (creatureName != null && creatureName != "");
 	}
 	bool HasEffect (int _Pass,TargetEffect _effect) {
-		List<string> ls = GetCard (_Pass).SkillTexts;
-		for (int i = 0; i < ls.Count; i++ ){
-			string skill = ls [i];
-			if (skill.Contains ("[e]")) {
-				skill = skill.Replace("[e]","");
-				if (int.Parse(skill) == (int)_effect) {
-					return true;
-				}
-			}
-		}
-		return false;
-
+		return GetCard (_Pass).Effect.Contains ((int)_effect);
 	}
 
 	public bool CanSummon (CardParam _cp) {
@@ -2687,8 +2883,17 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 					cardImage.transform.position = userObjs [i].DeckPos.position;
 					cardImage.transform.localScale = Vector3.one;
 				}
-				//アクティブ判定
-				cardImage.Set(CalculateParam(cp),CanSummon(cp));
+//				//アクティブ判定
+//				bool ForceActive = false;
+//
+//				for (int i3 = 0; i3 < SelectChoices.Count; i3++ ){
+//					if (SelectChoices [i3].ID == cp.ID)
+//						ForceActive = true;
+//				}
+//				if (mode == Mode.SELECT && ForceActive) {
+//					cardImage.Set(CalculateParam(cp),true);
+//				} else
+					cardImage.Set(CalculateParam(cp),CanSummon(cp));
 				//カードの移動
 				cardImage.transform.DOMove (GetHandPoses (i) [i2].position,0.5f);
 				cardImage.transform.DOScale (1f * PoolCardScale, 0.3f);
@@ -3245,9 +3450,11 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 			debugTool.SetCard = false;
 		}
 		if (debugTool.SPBoost) {
-
+			StartCoroutine( S_ChangeLP (0, 200, true));
+			StartCoroutine( S_ChangeLP (1, 200, true));
 			StartCoroutine( S_ChangeSP (0, 100, true));
 			StartCoroutine( S_ChangeSP (1, -100, true));
+
 			debugTool.SPBoost = false;
 		}
 		if (debugTool.Refresh) {

@@ -118,14 +118,14 @@ public class ShopScript : MonoBehaviour,IRecieveMessage ,IBuy{
 	}
 
 	//購入後処理
-	public void OnBuy(List<object> cid) {
+	public void OnBuy(List<object> cid,string errmsg) {
 		//アラートを消す
 		alert.OpenClose (false);
 
 		if (cid == null || cid.Count == 0) {
 			//エラー
 
-			alert = AlertView.Make (-1, "通信エラー", "エラーが発生しました", new string[]{ "確認" }, gameObject, 1);
+			alert = AlertView.Make (-1, "エラー",errmsg, new string[]{ "確認" }, gameObject, 1);
 		} else {
 			//成功
 

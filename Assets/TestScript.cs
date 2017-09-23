@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Collections;
 using System.Collections.Generic;
 using MiniJSON;
@@ -7,19 +8,21 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using BestHTTP;
+
 using Carddata = SystemScript.CardData;
 
 public interface IRegister :  IEventSystemHandler {
-	void OnRegister(bool success);//TestScriptからデータをとる。
+	void OnRegister(string errmsg);//TestScriptからデータをとる。
 }
 public interface ILogin :  IEventSystemHandler {
-	void OnLogin(bool success);//TestScriptからデータをとる。
+	void OnLogin(string errmsg);//TestScriptからデータをとる。
 }
 public interface IBuy :  IEventSystemHandler {
-	void OnBuy(List<object> cid);//TestScriptからデータをとる。
+	void OnBuy(List<object> cid,string errmsg);//TestScriptからデータをとる。
 }
-
-
+public interface ILvup :  IEventSystemHandler {
+	void OnLvup(int cid,int lv,string errmsg);//TestScriptからデータをとる。
+}
 
 public class TestScript : SingletonMonoBehaviour<TestScript> {
 	public bool Reset = false;
@@ -27,6 +30,7 @@ public class TestScript : SingletonMonoBehaviour<TestScript> {
 	public bool RegistTrigger = false;
 	public bool LoginTrigger = false;
 	public bool BuyTrigger = false;
+	public bool DownloadTrigger = false;
 	public string UserName = "";
 	public string Password = "";
 	public GameObject Delegate;
@@ -110,77 +114,6 @@ public class TestScript : SingletonMonoBehaviour<TestScript> {
 		public string lastLogin;
 	}
 
-//
-//	public void Awake (){
-//		loginData.name = "akira";
-//		loginData.uid = 235240503;
-//		loginData.coin = 3500;
-//		loginData.dia = 60;
-//		loginData.loginDays = 4;
-//		loginData.rate = 1580;
-//
-//		var box = DataManager.Instance.box;
-//		loginData.boxdata = new List<List<int>> ();
-//		for (int i = 0; i < box.Count; i++ ){
-//			var card = box [i];
-//			int id = card.ID;
-//			int lv = card.LV;
-//			int count = card.Count;
-//			loginData.boxdata.Add (new List<int> (){ id, lv ,count});
-//		}
-//
-//		var decks = DataManager.Instance.decks;
-//		loginData.deckdata = new List<List<List<int>>> ();
-//		for (int i = 0; i < decks.Count; i++ ){
-//			List<List<int>> result = new List<List<int>> ();
-//			List<SystemScript.CardData> deck = decks [i];
-//			for (int i2 = 0; i2 < deck.Count; i2++ ){
-//				var card = deck [i2];
-//				List<int> cardInts = new List<int> ();
-//				cardInts.Add (card.ID);
-//				cardInts.Add (card.Count);
-//				result.Add (cardInts);
-//			}
-//			loginData.deckdata.Add (result);
-//		}
-//
-//		loginData.presents = new List<PresentData> ();
-//		var present = new PresentData ();
-//		present.title = "第二回公式戦開催祝！";
-//		present.compen = 0;
-//		present.detail = "お祝いとして1000コインプレゼント!";
-//		present.id = 2;
-//		present.kind = "coin";
-//		present.point = 1000;
-//		present.received = false;
-//		DateTime dt = new DateTime (2017,9,1,15,45,0,DateTimeKind.Local);
-//		present.startt = dt.ToString ();
-//
-////		present.start = 
-//		loginData.presents.Add (present);
-//
-//
-////		var x = JsonMapper.ToJson (loginData);
-////		Debug.Log (x);
-//
-//
-////
-////
-////		loginData.boxdata = new List<List<int>> ();
-////		loginData.boxdata.Add (new List<int> (){ 3, 5 });
-////		List<List<int>> d = new List<List<int>> ();
-////		d.Add (new List<int> (){ 6, 2, 7, 9 });
-////		d.Add (new List<int> (){ 6, 2, 7, 9 });
-////		loginData.deckdata = new List<List<List<int>>> ();
-////		loginData.deckdata.Add (new List<List<int>> (){ new List<int> (){ 3, 5 }, new List<int> (){ 3, 5 } });
-//		var x = JsonMapper.ToJson (loginData);
-//		Debug.Log (x);
-////		HTTPRequest request = new HTTPRequest (new Uri (URL+Path), HTTPMethods.Post, OnRequestFinished);
-////		request.AddField ("name", "akr");
-//////		request.AddField ("password",StringUtils.GeneratePassword(30));
-////		request.AddField ("password",Password);
-////		request.Send ();
-//	}
 	void Update () {
 		if(Reset){
 			Reset = false;
@@ -204,6 +137,11 @@ public class TestScript : SingletonMonoBehaviour<TestScript> {
 			BuyTrigger = false;
 			Buy("coin",1);
 		}
+
+		if (DownloadTrigger) {
+			DownloadTrigger = false;
+			Download ();
+		}
 	}
 
 	void Test () {
@@ -212,6 +150,8 @@ public class TestScript : SingletonMonoBehaviour<TestScript> {
 	}
 
 	public void Register () {
+		if (DataManager.Instance.OfflineMode)
+			return;
 		Debug.Log ("Register");
 		HTTPRequest request = new HTTPRequest (new Uri (URL+"users/"), HTTPMethods.Post, OnRegister);
 		request.AddField ("name", UserName);
@@ -221,6 +161,8 @@ public class TestScript : SingletonMonoBehaviour<TestScript> {
 	}
 
 	public void Login (int uid,string password) {
+		if (DataManager.Instance.OfflineMode)
+			return;
 		Debug.Log ("Login");
 		HTTPRequest request = new HTTPRequest (new Uri (URL+"login/"), HTTPMethods.Post, OnLogin);
 		request.AddField ("uid", uid+"");
@@ -229,79 +171,166 @@ public class TestScript : SingletonMonoBehaviour<TestScript> {
 	}
 
 	public void Buy (string kind,int count) {
+		if (DataManager.Instance.OfflineMode)
+			return;
 		HTTPRequest request = new HTTPRequest (new Uri (URL+"shop/"), HTTPMethods.Post, OnBuy);
 		request.AddField ("kind", kind);
 		request.AddField ("count",count.ToString());
 		request.Send ();
 	}
 
+	public void Lvup (int cid,int to_lv) {
+		if (DataManager.Instance.OfflineMode)
+			return;
+		HTTPRequest request = new HTTPRequest (new Uri (URL+"lvup/"), HTTPMethods.Post, OnLvup);
+		request.AddField ("cid", cid.ToString());
+		request.AddField ("to_lv",to_lv.ToString());
+		request.Send ();
+	}
 
+	public void Download () {
+		var request = new HTTPRequest (new Uri ("https://drive.google.com/open?id=0B463Jpbf6-RIa2w5ejNiY0Zxbzg"), (req, resp) => {
+			List<byte[]> fragments = resp.GetStreamedFragments ();
+
+			// Write out the downloaded data to a file:
+			using (FileStream fs = new FileStream (Application.persistentDataPath + "/data", FileMode.Append))
+				foreach (byte[] data in fragments)
+					fs.Write (data, 0, data.Length);
+			if (resp.IsStreamingFinished)
+				Debug.Log ("Download finished!");
+		});
+		request.UseStreaming = true;
+		request.StreamFragmentSize = 1 * 1024 * 1024; // 1MB
+		request.DisableCache = true;
+		request.Send ();
+
+	}
+
+
+	string GetErrorMessage (HTTPRequest request) {
+		var state = request.State;
+		Debug.Log (request.State);
+		switch (state) {
+		case HTTPRequestStates.Aborted:
+			return "リクエストが中断されました";
+			break;
+		case HTTPRequestStates.ConnectionTimedOut:
+		case HTTPRequestStates.TimedOut:
+			return "要求がタイムアウトしました";
+			break;
+		case HTTPRequestStates.Error:
+			return "通信エラーが発生しました";
+			break;
+		}
+		return "";
+	}
 
 	void OnRegister (HTTPRequest request, HTTPResponse response) {
-		Debug.Log("Request Finished! Text received: " + response.DataAsText);
+		//エラー
+		string errorMessage = GetErrorMessage (request);
+		if (errorMessage == "") {
+			try{
+			Debug.Log ("Request Finished! Text received: " + response.DataAsText);
+			var main = GetDic (response.DataAsText);
+			int status = GetStatus (main);
 
-		var main = GetDic (response.DataAsText);
-		int status = GetStatus (main);
-		if (DataType(main) == "login") {
-			bool success = false;
-
-			//登録成功
 			if (status == 200) {
-				success = true;
+				//登録成功
 				SetLoginData (main);
+			} else {
+				//エラー
+				errorMessage = "サーバーエラーが発生しました";
 			}
-			ExecuteEvents.Execute<IRegister>(
-				target: Delegate, // 呼び出す対象のオブジェクト
-				eventData: null,  // イベントデータ（モジュール等の情報）
-				functor: (recieveTarget,y)=>recieveTarget.OnRegister(success)); // 操作
-			
-		} else {
-			//登録失敗
+			} catch (Exception e){
+				errorMessage = "サーバーエラーが発生しました";
+			}
 		}
-
-
+		ExecuteEvents.Execute<IRegister>(
+			target: Delegate, // 呼び出す対象のオブジェクト
+			eventData: null,  // イベントデータ（モジュール等の情報）
+			functor: (recieveTarget,y)=>recieveTarget.OnRegister(errorMessage)); // 操作
 	}
 
 	void OnLogin (HTTPRequest request, HTTPResponse response) {
-		Debug.Log("Request Finished! Text received: " + response.DataAsText);
+		string errorMessage = GetErrorMessage (request);
+		if (errorMessage == "") {
+			try{
+				Debug.Log ("Request Finished! Text received: " + response.DataAsText);
+				var main = GetDic (response.DataAsText);
+				int status = GetStatus (main);
 
-		var main = GetDic (response.DataAsText);
-		int status = GetStatus (main);
-		if (DataType (main) == "login") {
-			bool success = false;
-			//登録成功
-			if (status == 200) {
-				success = true;
-				SetLoginData (main);
+				if (status == 200) {
+					//ログイン成功
+					SetLoginData (main);
+				} else {
+					//エラー
+					errorMessage = "サーバーエラーが発生しました";
+				}
+			} catch (Exception e ){
+				errorMessage = "サーバーエラーが発生しました";
 			}
-			ExecuteEvents.Execute<ILogin>(
-				target: Delegate, // 呼び出す対象のオブジェクト
-				eventData: null,  // イベントデータ（モジュール等の情報）
-				functor: (recieveTarget,y)=>recieveTarget.OnLogin(success)); // 操作
-			
 		}
+		ExecuteEvents.Execute<ILogin> (
+			target: Delegate, // 呼び出す対象のオブジェクト
+			eventData: null,  // イベントデータ（モジュール等の情報）
+			functor: (recieveTarget, y) => recieveTarget.OnLogin (errorMessage)); // 操作
 	}
 
 	void OnBuy (HTTPRequest request, HTTPResponse response) {
-		Debug.Log("Request Finished! Text received: " + response.DataAsText);
-		var main = GetDic (response.DataAsText);
-		int status = GetStatus (main);
-		if (DataType (main) == "addcards") {
-			if (status == 200) {
-				var data = GetDic ((string)main ["data"]);
-				List<object> x = (List<object>)data ["ids"];//購入したカード
+		string errorMessage = GetErrorMessage (request);
+		List<object> buyCards = null;
+		if (errorMessage == "") {
+			try{
+				Debug.Log ("Request Finished! Text received: " + response.DataAsText);
+				var main = GetDic (response.DataAsText);
+				int status = GetStatus (main);
 
-				ExecuteEvents.Execute<IBuy> (
-					target: Delegate, // 呼び出す対象のオブジェクト
-					eventData: null,  // イベントデータ（モジュール等の情報）
-					functor: (recieveTarget, y) => recieveTarget.OnBuy (x)); // 操作
+				if (status == 200) {
+					//購入成功
+					var data = GetDic ((string)main ["data"]);
+					buyCards = (List<object>)data ["ids"];//購入したカード
+				} else {
+					//エラー
+					errorMessage = "サーバーエラーが発生しました";
+				}
+			} catch (Exception e ){
+				errorMessage = "サーバーエラーが発生しました";
 			}
-		} else {
-			ExecuteEvents.Execute<IBuy> (
-				target: Delegate, // 呼び出す対象のオブジェクト
-				eventData: null,  // イベントデータ（モジュール等の情報）
-				functor: (recieveTarget, y) => recieveTarget.OnBuy (null)); // 操作
 		}
+		ExecuteEvents.Execute<IBuy> (
+			target: Delegate, // 呼び出す対象のオブジェクト
+			eventData: null,  // イベントデータ（モジュール等の情報）
+			functor: (recieveTarget, y) => recieveTarget.OnBuy (buyCards,errorMessage)); // 操作
+	}
+
+	void OnLvup (HTTPRequest request, HTTPResponse response) {
+		string errorMessage = GetErrorMessage (request);
+		int cid = -1;
+		int lv = -1;
+		if (errorMessage == "") {
+			try{
+				Debug.Log ("Request Finished! Text received: " + response.DataAsText);
+				var main = GetDic (response.DataAsText);
+				int status = GetStatus (main);
+
+				if (status == 200) {
+					//購入成功
+					var data = GetDic ((string)main ["data"]);
+					cid = toInt( data ["cid"]);//購入したカード
+					lv = toInt(data["lv"]);
+				} else {
+					//エラー
+					errorMessage = "サーバーエラーが発生しました";
+				}
+			} catch (Exception e ){
+				errorMessage = "サーバーエラーが発生しました";
+			}
+
+		}
+		ExecuteEvents.Execute<ILvup> (
+			target: Delegate, // 呼び出す対象のオブジェクト
+			eventData: null,  // イベントデータ（モジュール等の情報）
+			functor: (recieveTarget, y) => recieveTarget.OnLvup (cid,lv,errorMessage)); // 操作
 	}
 
 	void SetLoginData (Dictionary<string,object> main) {

@@ -13,6 +13,12 @@ public class OnlineManager : SingletonMonoBehaviour<OnlineManager> {
 	SocketManager Manager;
 	BattleScript battleScript;
 
+	enum NetMode {
+		PUN,
+		NODE,
+	}
+	NetMode netMode;
+
 	enum Status {
 		DISCONNECTED,
 		CONNECTING,
@@ -28,32 +34,58 @@ public class OnlineManager : SingletonMonoBehaviour<OnlineManager> {
 		//接続していない
 		state = Status.DISCONNECTED;
 
+		if (netMode == NetMode.NODE) {
+			//Node.js
 
-		SocketOptions options = new SocketOptions();
-		options.AutoConnect = false;
+			SocketOptions options = new SocketOptions ();
+			options.AutoConnect = false;
 
-		//ネームスペースわけ
-		Manager = new SocketManager(new System.Uri(url), options);
-		Socket pvp = Manager.GetSocket ("/pvp");
-		Socket news = Manager.GetSocket ("/news");
+			//ネームスペースわけ
+			Manager = new SocketManager (new System.Uri (url), options);
+			Socket pvp = Manager.GetSocket ("/pvp");
+			Socket news = Manager.GetSocket ("/news");
 
-		//エラー処理
-		pvp.On(SocketIOEventTypes.Error, (socket, packet, args) => Debug.LogError(string.Format("Error: {0}", args[0].ToString())));
-		news.On(SocketIOEventTypes.Error, (socket, packet, args) => Debug.LogError(string.Format("Error: {0}", args[0].ToString())));
+			//エラー処理
+			pvp.On (SocketIOEventTypes.Error, (socket, packet, args) => Debug.LogError (string.Format ("Error: {0}", args [0].ToString ())));
+			news.On (SocketIOEventTypes.Error, (socket, packet, args) => Debug.LogError (string.Format ("Error: {0}", args [0].ToString ())));
 
-		//
-		pvp.On("OnMatched",OnMatched);
-		pvp.On ("OnJoin", OnJoin);
+			//
+			pvp.On ("OnMatched", OnMatched);
+			pvp.On ("OnJoin", OnJoin);
 
-		Manager.Open();
+			Manager.Open ();
+		} else {
+			//PUN
+			PhotonNetwork.ConnectUsingSettings(DataManager.Instance.AppVersion);
+
+
+		}
 	}
 	//マッチング開始
 	public void Matching () {
-		List<CardParam> deck = SystemScript.cdTocp (DataManager.Deck.GetDeckData (DataManager.Instance.UseDeck));
-		deck = SystemScript.ShuffleCP(deck);
-		Manager["/pvp"].Emit ("toLobby",new object[] {JsonMapper.ToJson(deck)});
+		if (netMode == NetMode.NODE) {
+			List<CardParam> deck = SystemScript.cdTocp (DataManager.Deck.GetDeckData (DataManager.Instance.UseDeck));
+			deck = SystemScript.ShuffleCP (deck);
+			Manager ["/pvp"].Emit ("toLobby", new object[] { JsonMapper.ToJson (deck) });
+		} else {
+			
+
+
+		}
+	}
+	//マッチング開始(Photon)
+	public void RandomMatching (int mode) {
+		PhotonNetwork.JoinRandomRoom ();
+//		PhotonNetwork.JoinRoom("@random@"+mode);
+//		PhotonNetwork.reco
 	}
 
+	//チャット
+	[PunRPC]
+	void ChatMessage(string a, string b)
+	{
+		Debug.Log("ChatMessage " + a + " " + b);
+	}
 
 
 	public void SendDeck (List<CardParam> _deck) {
@@ -68,7 +100,7 @@ public class OnlineManager : SingletonMonoBehaviour<OnlineManager> {
 		int myNum = System.Convert.ToInt32( args[2]); //自分はどっちか
 		List<CardParam> pDeck = (myNum == 0) ? deck0 : deck1;
 		List<CardParam> eDeck = (myNum == 0) ? deck1 : deck0;
-		SceneManager.Instance.ToBattleOnline (0, new int[]{ 60, 60 }, new int[]{ 10, 10 }, pDeck, eDeck, myNum);
+		SceneManagerx.Instance.ToBattleOnline (0, new int[]{ 60, 60 }, new int[]{ 10, 10 }, pDeck, eDeck, myNum);
 
 	}
 	void OnJoin (Socket socket, Packet packet, params object[] args)

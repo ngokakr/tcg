@@ -18,7 +18,7 @@ public class GameManager : SingletonMonoBehaviour<GameManager> {
 	}
 	public class Scene : MonoBehaviour {
 		public void SceneChange (int _SceneNum){
-			SceneManager.Instance.NewScene (_SceneNum);
+			SceneManagerx.Instance.NewScene (_SceneNum);
 		}
 	}
 	public class Audio : MonoBehaviour
