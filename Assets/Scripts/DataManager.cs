@@ -35,6 +35,7 @@ public class DataManager : SingletonMonoBehaviour<DataManager> {
 	public List<string> deckName;
 	public int UseDeck = 0;
 	public int CardDataSystem;//CardDataやCardParamに変更を加える時に使用する。
+	public int BattleSpeed;
 
 	//基本データ
 	public Color[] AttributeColors;
@@ -43,6 +44,7 @@ public class DataManager : SingletonMonoBehaviour<DataManager> {
 	public int[] MaxLV;
 	public int[] DefaultLP;
 	public int[] DefaultSP;
+	public float[] BattleWait;
 
 	//プレハブ
 	public AlertView AlertPrefab;
@@ -494,6 +496,7 @@ public class DataManager : SingletonMonoBehaviour<DataManager> {
 		Coin = SaveData.GetInt ("Coin", 0);
 		Gold = SaveData.GetInt ("Gold", 0);
 		UseDeck = SaveData.GetInt ("UseDeck", 0);
+		BattleSpeed = SaveData.GetInt("BattleSpeed",1);
 	}
 	public void Save () {
 		//ボックス
@@ -527,7 +530,7 @@ public class DataManager : SingletonMonoBehaviour<DataManager> {
 		SaveData.SetInt ("Coin",Coin);
 		SaveData.SetInt ("Gold",Gold);
 		SaveData.SetInt ("UseDeck",UseDeck);
-
+		SaveData.SetInt ("BattleSpeed", BattleSpeed);
 		SaveData.Save ();
 	}
 

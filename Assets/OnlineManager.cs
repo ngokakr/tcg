@@ -94,7 +94,7 @@ public class OnlineManager : SingletonMonoBehaviour<OnlineManager> {
 		int myNum = System.Convert.ToInt32( args[2]); //自分はどっちか
 		List<CardParam> pDeck = (myNum == 0) ? deck0 : deck1;
 		List<CardParam> eDeck = (myNum == 0) ? deck1 : deck0;
-		SceneManagerx.Instance.ToBattleOnline (0, new int[]{ 60, 60 }, new int[]{ 10, 10 }, pDeck, eDeck, myNum);
+		SceneManagerx.Instance.ToBattleOnline (0, new int[]{ 60, 60 }, new int[]{ 10, 10 }, pDeck, eDeck,"name", myNum,0);
 
 	}
 	void OnJoin (Socket socket, Packet packet, params object[] args)

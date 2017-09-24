@@ -46,6 +46,11 @@ public class OtherView : MonoBehaviour,IRecieveMessage {
 //				AlertView.Make (0,"データ引き継ぎ","現在作成中",new string[]{"OK"}, gameObject,1);
 //			}
 //			break;
+		case 8://バトルスピード
+			{
+				AlertView.Make (8,"バトルスピード","ゲーム速度を設定します",new string[]{"高速","普通","低速"}, gameObject,1);
+			}
+			break;
 		default:
 			{
 				AlertView.Make (0,"製作中","現在作成中のコンテンツです。",new string[]{"OK"}, gameObject,1);
@@ -62,6 +67,12 @@ public class OtherView : MonoBehaviour,IRecieveMessage {
 		case 3:
 			{
 				SystemScript.OpenURL (CopyrightURL [_num]);
+			}
+			break;
+		case 8:
+			{
+				DataManager.Instance.BattleSpeed = _num;
+				DataManager.Instance.Save ();
 			}
 			break;
 		}

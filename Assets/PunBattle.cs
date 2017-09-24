@@ -3,35 +3,56 @@ using System.Collections.Generic;
 using UnityEngine;
 using BattleMode = OnlineManager.BattleMode;
 using CardData = SystemScript.CardData;
+using CardParam = SystemScript.CardParam;
 using LitJson;
 
 public class PunBattle : Photon.MonoBehaviour ,IRecieveMessage{
 
+	public BattleScript battleScript;
 	public PhotonView photonView;
 	AlertView alert;
 	BattleMode battleMode;
-	bool Battling = false;
+	public bool Battling = false;
+	public bool Reconnecting = false;
+	public bool Reconnectend = false;
 	public int Seed = 0;
 	public string roomKeyword = "";
 	int Initiative = -1;
-
+	string roomName = "";
 	//両方揃ったらゲーム開始
-	List<CardData> myDeck;
-	List<CardData> enemyDeck;
+	public List<CardParam> myDeck;
+	public List<CardParam> enemyDeck;
 	int e_uid;
 	string e_name;
+
+	[System.Serializable]
+	public struct PunData
+	{
+		public string roomName;
+		public bool Connect;
+		public bool lobby;
+		public bool room;
+
+	}
+
+	public PunData pundata;
 
 	/// <summary>
 	/// とにかく最初に呼ぶ
 	/// </summary>
 	public void Matching (BattleMode mode,string keyword) {
+		Battling = false;
+		Reconnecting = false;
+		Reconnectend = false;
 		battleMode = mode;
 		roomKeyword = keyword;
 		myDeck = null;
 		enemyDeck = null;
+		Reconnectend = false;
 		if (!PhotonNetwork.connected) {
 			PhotonNetwork.ConnectUsingSettings(DataManager.Instance.AppVersion);
-		}
+		} else 
+			JoinOrCreate();
 	}
 
 	/// <summary>
@@ -71,19 +92,25 @@ public class PunBattle : Photon.MonoBehaviour ,IRecieveMessage{
 	}
 
 
+	#region 対戦準備
+
 	/// <summary>
 	/// マッチング成功時
 	/// </summary>
-	void OnMatched (PhotonPlayer newPlayer) {
+	void OnMatched () {
 		//データ送信
+		if(alert != null)
+		alert.OpenClose(false);
+		Reconnectend = false;
 		int uid = DataManager.Instance.uid;
 		string uname = DataManager.Instance.PlayerName;
+		roomName = PhotonNetwork.room.Name;
 		if (PhotonNetwork.isMasterClient) {
 			Initiative= Random.Range (0, 2);//0だったらマスタークライアントが先攻
 			Seed = Random.Range (0, 999999999);
-
+			PhotonNetwork.room.IsOpen = false;
 		}
-		myDeck = DataManager.Deck.GetDeckData ();
+		myDeck = SystemScript.ShuffleCP( SystemScript.cdTocp( DataManager.Deck.GetDeckData ()));
 		string deckjson = JsonMapper.ToJson(myDeck);
 		photonView.RPC ("RPC_StartDatas",PhotonTargets.OthersBuffered,uid,uname,Initiative,Seed,deckjson);
 
@@ -92,11 +119,11 @@ public class PunBattle : Photon.MonoBehaviour ,IRecieveMessage{
 	}
 
 	[PunRPC]
-	void RPC_StartDatas (PhotonMessageInfo info,int uid,string uname,int initiative,int seed,string deckjson){
+	void RPC_StartDatas (int uid,string uname,int initiative,int seed,string deckjson,PhotonMessageInfo info){
 		e_uid = uid;
 		e_name = name;
 		//デッキ
-		enemyDeck = JsonMapper.ToObject<List<CardData>> (deckjson);
+		enemyDeck = JsonMapper.ToObject<List<CardParam>> (deckjson);
 		//シード & 先攻後攻
 		if (info.sender.isMasterClient) {
 			Seed = seed;
@@ -108,11 +135,69 @@ public class PunBattle : Photon.MonoBehaviour ,IRecieveMessage{
 	}
 
 	void CanBattle (){
-		if (myDeck != null && enemyDeck != null) {//準備完了
+//		Debug.Log (string.Format( "CanBattle{0} {1} : {2} {3}",myDeck != null,enemyDeck != null,myDeck.Count >0,enemyDeck.Count >0));
+		if (myDeck != null && myDeck.Count >0 && enemyDeck != null && enemyDeck.Count >0) {//準備完了
+			Debug.Log("BattleStart");
+			Battling = true;
 			SceneManagerx.Instance.ToBattleOnline (battleMode, DataManager.Instance.DefaultLP, DataManager.Instance.DefaultSP
-				, SystemScript.cdTocp(myDeck),SystemScript.cdTocp(enemyDeck) , Initiative);
+				,myDeck,enemyDeck,e_name, Initiative,Seed);
 		}
 	}
+
+
+
+	#endregion
+
+
+	#region 対戦中
+
+	public void SendCommands (List<BattleScript.Command> cmds) {
+		string json = JsonMapper.ToJson (cmds);
+		photonView.RPC ("RPC_CommandDatas",PhotonTargets.OthersBuffered,json);
+	}
+
+	public void SendCommand (BattleScript.Command cmd) {
+		string json = JsonMapper.ToJson (cmd);
+		photonView.RPC ("RPC_CommandData",PhotonTargets.OthersBuffered,json);
+	}
+
+	[PunRPC]
+	public void RPC_CommandDatas(string cmds,PhotonMessageInfo info){
+		var data = JsonMapper.ToObject<List<BattleScript.Command>> (cmds);
+		battleScript.CommandsNotify (data);
+	}
+
+	[PunRPC]
+	public void RPC_CommandData(string cmd,PhotonMessageInfo info){
+		var data = JsonMapper.ToObject<BattleScript.Command> (cmd);
+		battleScript.CommandNotify (data);
+	}
+
+	IEnumerator Reconnect () {
+		alert = AlertView.Make (-1, "再接続中", "しばらくお待ち下さい", new string[]{}, gameObject, 2,true);
+
+		Reconnecting = true;
+		Reconnectend = false;
+		for (int i = 0; i < 15; i++ ){
+			PhotonNetwork.ReconnectAndRejoin ();
+			yield return new WaitForSeconds (1f);
+			if (PhotonNetwork.connected) {
+				yield break;
+			}
+		}
+		Reconnecting = false;
+		Reconnectend = true;
+		alert.OpenClose (false);
+		PhotonNetwork.Disconnect ();
+		battleScript.DisconnectJudge (1);
+	}
+
+	public void GameEnd () {
+		Reconnecting = false;
+		Reconnectend = true;
+		PhotonNetwork.Disconnect ();
+	}
+	#endregion
 
 	public void OnRecieve(int _num,int _tag){
 		if (_tag == 0 || _tag == 1) {//ルーム解散
@@ -137,9 +222,16 @@ public class PunBattle : Photon.MonoBehaviour ,IRecieveMessage{
 	}
 	void OnPhotonJoinRoomFailed(object[] codeAndMsg){
 		Debug.Log ("OnPhotonJoinRoomFailed:" + codeAndMsg [0] + codeAndMsg [1]);
-		AlertView.Make (-1,"エラー","入室できませんでした",new string[]{"OK"}, gameObject,1);
-		battleMode = BattleMode.NONE;
-		PhotonNetwork.Disconnect ();
+		if (Battling) {
+			alert.OpenClose (false);
+			Reconnectend = true;
+			battleScript.DisconnectJudge (1);
+			PhotonNetwork.Disconnect ();
+		} else {
+			AlertView.Make (-1, "エラー", "入室できませんでした", new string[]{ "OK" }, gameObject, 1);
+			battleMode = BattleMode.NONE;
+			PhotonNetwork.Disconnect ();
+		}
 	}
 	void OnCreatedRoom(){
 		Debug.Log ("OnCreatedRoom");
@@ -152,11 +244,23 @@ public class PunBattle : Photon.MonoBehaviour ,IRecieveMessage{
 	void OnLeftLobby () {
 		Debug.Log ("OnLeftLobby");
 	}
+	void OnJoinedRoom(){
+		Debug.Log ("OnJoinedRoom");
+		if (PhotonNetwork.room.PlayerCount == 2) {
+			OnMatched ();
+		}
+	}
 	void OnDisconnectedFromPhoton(){
 		Debug.Log ("OnDisconnectedFromPhoton");
 		if (!Battling && battleMode != BattleMode.NONE) {
+			if(alert != null)
 			alert.OpenClose (false);
-			AlertView.Make (-1,"エラー","サーバーから切断されました。",new string[]{"OK"}, gameObject,1);
+			AlertView.Make (-1, "エラー", "サーバーから切断されました。", new string[]{ "OK" }, gameObject, 1);
+		} 
+		if(Battling){//対戦中
+			if (Reconnecting == false &&Reconnectend == false) {
+				StartCoroutine (Reconnect ());
+			}
 		}
 	}
 	void OnConnectionFail(DisconnectCause cause){
@@ -168,7 +272,7 @@ public class PunBattle : Photon.MonoBehaviour ,IRecieveMessage{
 	}
 	void OnPhotonPlayerConnected(PhotonPlayer newPlayer){
 		Debug.Log ("OnPhotonPlayerConnected");
-		OnMatched (newPlayer);
+		OnMatched ();
 	}
 	void OnPhotonPlayerDisconnected(PhotonPlayer otherPlayer){
 		Debug.Log ("OnPhotonPlayerDisconnected");

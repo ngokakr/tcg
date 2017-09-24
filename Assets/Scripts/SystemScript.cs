@@ -224,13 +224,23 @@ public class SystemScript : MonoBehaviour {
 
 	//カードシャッフル
 	public static List<CardParam> ShuffleCP (List<CardParam> _lcp) {
+		//とりあえず引き伸ばす
+		List<CardParam> ret = new List<CardParam> ();
 		for (int i = 0; i < _lcp.Count; i++ ){
-			CardParam temp = _lcp [i];
-			int randomIndex = Random.Range (0, _lcp.Count);
-			_lcp [i] = _lcp [randomIndex];
-			_lcp [randomIndex] = temp;
+			CardParam cp = _lcp [i];
+			for (int i2 = 0; i2 < cp.Count; i2++ ){
+				CardParam x = new CardParam ().Set (0, cp.ID, cp.LV, 1);
+				ret.Add (x);
+			}
 		}
-		return _lcp;
+
+		for (int i = 0; i < ret.Count; i++ ){
+			CardParam temp = ret [i];
+			int randomIndex = Random.Range (0, ret.Count);
+			ret [i] = ret [randomIndex];
+			ret [randomIndex] = temp;
+		}
+		return ret;
 	}
 
 	//パワー

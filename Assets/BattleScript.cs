@@ -93,27 +93,58 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 	public List<CardParam> EnemyGrave;//(5)
 	//オンラインデータ 先手召喚データ -> 後手召喚データ -> 選択データ等
 	List<object[]> onlineDatas;
+	AlertView alert;
+	OnlineManager.BattleMode battleMode;
+	OnlineManager.NetMode netMode;
 	//パスを生成する時に使う値
 	int PassNum = 1; //1からスタート
 	//カードを使い回す
 	public List<CardImageScript> CardPool;
 	//[Pass][SummonOrDiscard]
 	[SerializeField]
-	public int[][] SelectingPasses = new int[2][];
+//	public int[][] SelectingPasses = new int[2][];
+
+	//コマンド
+	[System.Serializable]
+	public struct Command {
+		public int index;//何番目のコマンドか。通信用
+		public int kind;
+		public int pass;
+
+		/// <summary>
+		/// kind: 0=召喚 -1=破棄 -2=何もしない 1=選択 pass: カードパス
+		/// </summary>
+		public Command Set(int _kind,int _pass) {
+			kind = _kind;
+			pass = _pass;
+			return this;
+		}
+	}
+	public List<Command> NowCommands;
+	public List<Command> PlayerCommands;
+	public List<Command> EnemyCommands;
+	public List<int> CommandProgresses;//両プレイヤーのコマンド進度
+
 	//選択
 	List<CardParam> SelectChoices;
-	public int Select1Pass = -1;
+//	public int Select1Pass = -1;
 	bool windowOpen = false;//選択ウィンドウを表示するか
 //	List<CardParam> SelectWindowCards;//対象のカード
 	public int nowPage = 0;
 
 	//固定値
 	const int MAX_NUM_OF_HANDS = 4;
+	const float TIMER = 30f;
+
+	//
+	float NowTimer = 30f;
+
 	//現在詳細を見ているカード
 	public CardParam DetailCard;
 	//ターンシークエンスこるーちん
 	IEnumerator seq;
 	//引っ張り
+	public PunBattle punBattle;
 	public Image WeatherImage;
 	public CardImageScript DetailImage;
 	public List<CardImageScript> SelectWindowCardsImage;
@@ -123,6 +154,7 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 	public Text ParamText;
 	public Text SkillText;
 	public Text TurnText;
+	public Text TimerText;
 	public Text SelectWindowTitle;
 
 	public GameObject SummonButton;
@@ -279,14 +311,24 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		seq = Sequence();
 		StartCoroutine (seq);
 	}
-	public void BattleStartOnline (int[] _LPs,int[] _SPs,List<CardParam> _PDeck,List<CardParam> _EDeck,int _initiative) {
+	public void BattleStartOnline (int[] _LPs,int[] _SPs,List<CardParam> _PDeck,List<CardParam> _EDeck,string e_name,int _initiative,int _seed) {
 		BattleStart ();//共通設定
+		DefaultLPs = new int[2];
+		DefaultLPs[0] =  _LPs[0];
+		DefaultLPs[1] = _LPs[1];
 		LPs = _LPs;
 		SPs = _SPs;
+
 		Initiative = _initiative;
 		PlayerDeck = _PDeck;
 		EnemyDeck = _EDeck;
 		MakePasses ();
+
+		//名前表示
+		alert = AlertView.Make (0,"対戦開始","vs "+e_name,new string[]{}, gameObject,2,true);
+		Invoke ("deleteAlert", 1.5f);
+		battleMode = OnlineManager.Instance.battleMode;
+		netMode = OnlineManager.Instance.netMode;
 
 		//手札
 		DealCard(0);
@@ -299,9 +341,16 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		gameMode = GameMode.RATE;
 		OnlineManager.Instance.SendDeck(PlayerDeck);
 
+		//シード値
+		Random.InitState(_seed);
+
 		seq = Sequence();
 		StartCoroutine (seq);
 	}
+	void deleteAlert () {
+		alert.OpenClose (false);
+	}
+
 	void BattleStart () {//CPU、オンライン共通の初期化処理
 		Application.targetFrameRate = 60;
 		Creatures = new List<CardParam> ();
@@ -314,16 +363,20 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		PlayerGrave = new List<CardParam> ();
 		EnemyGrave = new List<CardParam> ();
 		SelectChoices = new List<CardParam> ();
+		PlayerCommands = new List<Command> ();
+		EnemyCommands = new List<Command> ();
+		CommandProgresses = new List<int> (){ 0, 0 };
 		SummonButton.SetActive (false);
 		DiscardButton.SetActive (false);
 		SelectButton.SetActive (false);
+		TimerText.gameObject.SetActive (false);
 		mode = Mode.NOMAL;
 		WeatherImage.color = Color.gray;
 		Weather.text = "快晴";
 		NowWeather = -1;
-		Select1Pass = -1;
 		NowTurn = 0;
 		PassNum = 1;
+		WaitTime = DataManager.Instance.BattleWait [DataManager.Instance.BattleSpeed];
 		RemoveAllSelectEffect ();
 		for (int i = 0; i < CardPool.Count; i++ ){
 			CardPool [i].gameObject.SetActive (false);
@@ -367,18 +420,27 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		NowPhase = Phase._1_WAIT;
 		//召喚状態初期化
 		mode = Mode.SUMMON;
-		SelectingPasses [0] = new int[]{ -1, -1 };
-		SelectingPasses [1] = new int[]{ -1, -1 };
+
+		//Command初期化
+		NowCommands = new List<Command> ();
+		NowCommands .Add(new Command());
+		NowCommands .Add(new Command());
+
+//		SelectingPasses [0] = new int[]{ -1, -1 };
+//		SelectingPasses [1] = new int[]{ -1, -1 };
+
 		//手札がなければ選択なし。
-		Debug.Log (string.Format ("HandCount : {0} / {1}",GetHands (0).Count,GetHands (1).Count));
 		if (0 == GetHands (0).Count) {
 			//プレイヤーの手札なし
-			SelectingPasses [0] = new int[]{ -2, -2 };
+			NowCommands[0] = AddCommand(0,-2,-2);
+//			SelectingPasses [0] = new int[]{ -2, -2 };
 			if(gameMode == GameMode.CPU)
 				CPU ();
 		}if (0 == GetHands (1).Count) {
 			//対戦相手の手札なし
-			SelectingPasses [1] = new int[]{ -2, -2 };
+			if(gameMode == GameMode.CPU)
+				NowCommands[1] = AddCommand(1,-2,-2);
+//			SelectingPasses [1] = new int[]{ -2, -2 };
 		}
 		//使用しない素材はunload
 		Resources.UnloadUnusedAssets();
@@ -387,9 +449,16 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 
 		//召喚or破棄するまで無限ループ & 待機中はfps15
 		Application.targetFrameRate = 30;
-		while((SelectingPasses[0][0] == -1 && GetHands(0).Count > 0) || SelectingPasses[1][0] == -1 && GetHands(1).Count > 0){
+
+		if(gameMode!= GameMode.CPU)
+			StartCoroutine (StartTimer (new Command ().Set (-1, PlayerHand [0].Pass)));//タイマー開始
+//		while((SelectingPasses[0][0] == -1 && GetHands(0).Count > 0) || SelectingPasses[1][0] == -1 && GetHands(1).Count > 0){
+		while((PlayerCommands.Count <= CommandProgresses[0]) || EnemyCommands.Count <= CommandProgresses[1]){
 			yield return null;
 		}
+		CommandProgresses [0]++;
+		CommandProgresses [1]++;
+		TimerText.gameObject.SetActive (false);
 		//fpsを戻す
 		Application.targetFrameRate = 60;
 		mode = Mode.NOMAL;
@@ -582,7 +651,35 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		Judge();
 	}
 
-	void Judge () {
+	Command AddCommand (int user,int kind,int pass) {
+
+		if (user == 1 && gameMode != GameMode.CPU) {
+			return new Command();
+		}
+		//過去コマンド取得
+		var cmds = user == 0 ? PlayerCommands : EnemyCommands;
+		Command cmd = new Command ();
+
+		cmd.index = cmds.Count;
+		cmd.kind = kind;
+		cmd.pass = pass;
+		cmds.Add (cmd);
+
+		if(gameMode != GameMode.CPU)
+		punBattle.SendCommand (cmd);
+		return cmd;
+	}
+
+	List<Command> GetCommands (int user) {
+		return user == 0 ? PlayerCommands : EnemyCommands;
+	}
+	Command GetCommand (int user) {
+		var cmds = user == 0 ? PlayerCommands : EnemyCommands;
+		int count = cmds.Count;
+		return cmds [count - 1];
+	}
+
+	void Judge (int forceWin = -1) {
 		
 		bool PlayerLose = false;
 		bool EnemyLose = false;
@@ -592,6 +689,12 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		}
 		if (GetLP (1)  <= 0 || (GetHands(1).Count +GetDeck(1).Count) == 0) {
 			EnemyLose = true;
+		}
+
+		if (forceWin == 0) {
+			EnemyLose = true;
+		} else if (forceWin == 1) {
+			PlayerLose = true;
 		}
 
 		if (PlayerLose && EnemyLose) {
@@ -613,6 +716,8 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		}
 		if (PlayerLose || EnemyLose) {
 			Application.targetFrameRate = 30;
+			if(gameMode != GameMode.CPU)
+				punBattle.GameEnd ();
 			StopAllCoroutines ();
 		}
 	}
@@ -1181,17 +1286,26 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 			//int系
 		case "power":
 			{
-				ReturnObj= (((List<CardParam>)_lastObj) [0].GetCalPower());
+				if (((List<CardParam>)_lastObj).Count == 1)
+					ReturnObj = (((List<CardParam>)_lastObj) [0].GetCalPower ());
+				else
+					ReturnObj = 0;
 			}
 			break;
 		case "cost":
 			{
-				ReturnObj= (((List<CardParam>)_lastObj) [0].GetCalCost());
+				if (((List<CardParam>)_lastObj).Count == 1)
+					ReturnObj= (((List<CardParam>)_lastObj) [0].GetCalCost());
+				else
+					ReturnObj = 0;
 			}
 			break;
 		case "role":
 			{
-				ReturnObj= (((List<CardParam>)_lastObj) [0].Role);
+				if (((List<CardParam>)_lastObj).Count == 1)
+					ReturnObj = (((List<CardParam>)_lastObj) [0].Role);
+				else
+					ReturnObj = -1;
 			}
 			break;
 		case "count":
@@ -1201,7 +1315,10 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 			break;
 		case "group":
 			{
-				ReturnObj= (((List<CardParam>)_lastObj) [0].Groups);
+				if (((List<CardParam>)_lastObj).Count == 1)
+					ReturnObj = (((List<CardParam>)_lastObj) [0].Groups);
+				else
+					ReturnObj = new List<int> ();
 			}
 			break;
 		case "turn":
@@ -1211,7 +1328,10 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 			break;
 		case "team":
 			{
-				ReturnObj= (PlayerOrEnemy (((List<CardParam>)_lastObj) [0]));
+				if (((List<CardParam>)_lastObj).Count == 1)
+					ReturnObj = (PlayerOrEnemy (((List<CardParam>)_lastObj) [0]));
+				else
+					ReturnObj = -1;
 			}
 			break;
 		case "true":
@@ -1260,6 +1380,16 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 				ReturnObj = iscard;
 			}else
 				ReturnObj=(false);
+		}
+		if(_word.Contains("hasEff(")){
+			List<CardParam> last = new List<CardParam> ();
+			var dat = (List<CardParam>)_lastObj;
+			dat = ReloadCard (dat);
+			for (int i = 0; i < dat.Count; i++ ){
+				if (HasEffect (dat [i].Pass,(TargetEffect)( (int)_InRound)))
+					last.Add (dat [i]);
+			}
+			ReturnObj = last;
 		}
 		if (_word.Contains ("exist")) {//カード以外は不可
 			ReturnObj= (0 < ((List<CardParam>)_lastObj).Count);
@@ -1362,6 +1492,16 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 			ReturnObj=( lcp.FindAll(f => f.GetCalPower() <= costPoint));
 		}
 
+		//追加
+		if (_word.Contains ("plus(")) {
+			List<CardParam> ret = new List<CardParam> ();
+			List<CardParam> addCards = (List<CardParam>)_InRound;
+			List<CardParam> lcp = _lastObj as List<CardParam>;
+			ret.AddRange (lcp);
+			ret.AddRange (addCards);
+			ReturnObj = ret;
+		}
+
 		//実行系
 		if (_word.Contains ("setTempCost(")) {
 			List<CardParam> lcp = _lastObj as List<CardParam>;
@@ -1401,7 +1541,7 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		case "select1":
 			{
 				
-				var lcp = (List<CardParam>)_lastObj;
+				var TargetCards = (List<CardParam>)_lastObj;
 				int targetCount = ((List<CardParam>)_lastObj).Count;
 
 				//対象なし
@@ -1409,56 +1549,85 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 					ReturnObj = (new List<CardParam> ());
 				} else {
 
-					int field = GetPos ((lcp) [0].Pass) [0];
+					int field = GetPos ((TargetCards) [0].Pass) [0];
 					List<int> gamen = new List<int> (){ -1, 0, 1 };
 
 					if (targetCount == 1) {//1枚
 						ReturnObj = _lastObj;
 					} else if (gamen.Contains (field)) {//盤面対象
-						//エフェクト表示
-						SetSelectEffect ((List<CardParam>)_lastObj);
-						//モード
-						mode = Mode.SELECT;
-						//リフレッシュ
-						Refresh();
-						ImageRefresh ();
-						//選択肢を設定
-						SelectChoices = (List<CardParam>)_lastObj;
+						
+						if (user == 0) {//自分
+							//エフェクト表示
+							SetSelectEffect (TargetCards);
+							//モード
+							mode = Mode.SELECT;
+							//リフレッシュ
+							Refresh ();
+							ImageRefresh ();
+							//選択肢を設定
+							SelectChoices = TargetCards;
+						} else if (user == 1 && gameMode == GameMode.CPU) {//CPU
+							
+							Random.Range (0, TargetCards.Count);
+							var y = TargetCards [Random.Range (0, TargetCards.Count)];
+							AddCommand (1, 1, y.Pass);
+						}
 						//選択するまで待つ & fpsセット
 						Application.targetFrameRate = 30;
-						Select1Pass = -1;
-						while (Select1Pass == -1)
+
+						//オンライン対戦&自分ならタイマー開始
+						if(gameMode!= GameMode.CPU && user == 0)
+							StartCoroutine (StartTimer (new Command ().Set (1, TargetCards [0].Pass)));//タイマー開始
+						while (GetCommands(user).Count <= CommandProgresses [user])
 							yield return null;
+						CommandProgresses [user]++;
 						Application.targetFrameRate = 60;
+//						Select1Pass = -1;
+//						while (Select1Pass == -1)
+//							yield return null;
+
 						//選択後、
 						mode = Mode.NOMAL;
 						RemoveAllSelectEffect ();
 						List<CardParam> temp = new List<CardParam> ();
-						temp.Add (GetCard (Select1Pass));
+						temp.Add (GetCard (GetCommand(user).pass));
 
 						ReturnObj = (temp);
 					} else {//盤面外(デッキ等)
 						//選択対象をセット
 //					SelectWindowCards = lcp;
-						SelectChoices = lcp;
-						SelectWindow.SetActive (true);
-						windowOpen = true;
-						SelectCardAndBG.SetActive (true);
+						if (user == 0) {
+							SelectChoices = TargetCards;
+							SelectWindow.SetActive (true);
+							windowOpen = true;
+							SelectCardAndBG.SetActive (true);
+							SelectWindowArraws [0].color = Color.gray;
 
-						SelectWindowArraws [0].color = Color.gray;
+							//その他表示
+							nowPage = 0;//1ページ目
+							RefreshSelectWindow ();
 
-
-						//その他表示
-						nowPage = 0;//1ページ目
-						RefreshSelectWindow ();
-
-						//モード
-						mode = Mode.SELECT;
-
+							//モード
+							mode = Mode.SELECT;
+						} else if (user == 1 && gameMode == GameMode.CPU) {//CPU
+							Random.Range (0, TargetCards.Count);
+							var y = TargetCards [Random.Range (0, TargetCards.Count)];
+							AddCommand (1, 1, y.Pass);
+						}
 						//選択するまで待つ
-						Select1Pass = -1;
-						while (Select1Pass == -1)
+						Application.targetFrameRate = 30;
+						//オンライン対戦&自分ならタイマー開始
+						if(gameMode!= GameMode.CPU && user == 0)
+							StartCoroutine (StartTimer (new Command ().Set (1, TargetCards [0].Pass)));//タイマー開始
+						while (GetCommands(user).Count <= CommandProgresses [user])
 							yield return null;
+						CommandProgresses [user]++;
+						Application.targetFrameRate = 60;
+
+//						Select1Pass = -1;
+//						while (Select1Pass == -1)
+//							yield return null;
+
 						//選択後、
 						SelectWindow.SetActive (false);
 						windowOpen = false;
@@ -1466,7 +1635,7 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 
 						mode = Mode.NOMAL;
 						List<CardParam> temp = new List<CardParam> ();
-						temp.Add (GetCard (Select1Pass));
+						temp.Add (GetCard (GetCommand(user).pass));
 						ReturnObj = (temp);
 					}
 				}
@@ -1710,11 +1879,14 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 	IEnumerator SummonCard () {
 		bool Summoned = false;
 		for (int i = 0; i < 2; i++ ){
-			int pass = SelectingPasses [i][0];
+//			int pass = SelectingPasses [i][0];
+			int pass = GetCommand (i).pass;
 			if (pass == -2)//手札が無いから何もしない
 				continue;
 			
-			int SummonOrDiscard = SelectingPasses [i] [1];
+//			int SummonOrDiscard = SelectingPasses [i] [1];
+			int SummonOrDiscard = GetCommand(i).kind;
+
 			if (SummonOrDiscard == 0) {//召喚
 				Debug.Log ("召喚:"+pass);
 				ToCreature (pass);
@@ -2919,12 +3091,6 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 			//画像変更
 			List<CardParam> hands = GetHands (i);
 			//<<手札>>
-			string d = "手札:";
-			for (int i2 = 0; i2 < hands.Count; i2++ ){
-				d += hands [i2].Name;
-			}
-			Debug.Log (d);
-
 			for (int i2 = 0; i2 < hands.Count; i2++) {
 				
 				CardParam cp = hands [i2];
@@ -3180,18 +3346,27 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 	}
 
 	public void SummonNotify(int _num) {
-		if (_num == 0) {//召喚ボタン
-			SelectingPasses[0] =  new int[]{ DetailCard.Pass,0};
+		if (mode == Mode.SUMMON) {
+			if (_num == 0) {//召喚ボタン
+//			SelectingPasses[0] =  new int[]{ DetailCard.Pass,0};
+				AddCommand (0, 0, DetailCard.Pass);
+				mode = Mode.NOMAL;
+			}
+			if (_num == -1) {//破棄
+//			SelectingPasses[0] = new int[]{DetailCard.Pass,-1};
+				AddCommand (0, -1, DetailCard.Pass);
+				mode = Mode.NOMAL;
+			}
+			ShowDetail ();
 		}
-		if (_num == -1) {//破棄
-			SelectingPasses[0] = new int[]{DetailCard.Pass,-1};
-		}
-		if (_num == 1) {//選択
-			Select1Pass = DetailCard.Pass;
+
+		if (mode == Mode.SELECT && _num == 1) {//選択
+			AddCommand(0,1,DetailCard.Pass);
+			mode = Mode.NOMAL;
+//			Select1Pass = DetailCard.Pass;
 			SelectButton.SetActive (false);
 		}
 		if (gameMode == GameMode.CPU && GetHands(1).Count > 0) {
-			
 			CPU ();
 		}
 		 
@@ -3201,6 +3376,21 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		DetailCard = GetCard (_Pass);
 		ShowDetail ();
 	}
+
+	public void CommandNotify (Command cmd) {
+		var cmds = EnemyCommands;
+		cmds.Add (cmd);
+	}
+
+	public void CommandsNotify (List<Command> cmds) {
+		EnemyCommands = cmds;
+	}
+
+	public void DisconnectJudge (int winner) {
+		Debug.Log ("DisconnectJudge : " +winner);
+		Judge (winner);
+	}
+
 	#endregion
 
 	#region CPU系
@@ -3235,7 +3425,8 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 			}
 		}
 		CardParam CPUCard = GetCard (1, CPUSelect);
-		SelectingPasses [1] = new int[]{CPUCard.Pass,(CanSummon(CPUCard)) ? 0 : -1};
+		AddCommand (1, (CanSummon (CPUCard)) ? 0 : -1, CPUCard.Pass);
+//		SelectingPasses [1] = new int[]{CPUCard.Pass,(CanSummon(CPUCard)) ? 0 : -1};
 	}
 
 	#endregion
@@ -3461,6 +3652,26 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 
 	void SEPlay (int _num) {
 		DataManager.Instance.BattleSEPlay (_num);
+	}
+
+	IEnumerator StartTimer (Command cmd) {
+		TimerText.gameObject.SetActive (true);
+		NowTimer = TIMER;
+		while (NowTimer > 0) {//0でないとき
+			if (PlayerCommands.Count > CommandProgresses [0]) {//選択したら抜ける。
+				TimerText.gameObject.SetActive (false);
+				yield break;
+			}
+			NowTimer -= Time.deltaTime;
+			TimerText.text = ((int)NowTimer) + "";
+			yield return null;
+		}
+		if (PlayerCommands.Count > CommandProgresses [0]) {//念のため
+			TimerText.gameObject.SetActive (false);
+			yield break;
+		}
+		AddCommand(0,cmd.kind,cmd.pass);
+		mode = Mode.NOMAL;
 	}
 
 	#endregion
