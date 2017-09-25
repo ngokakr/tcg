@@ -98,6 +98,7 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 	OnlineManager.NetMode netMode;
 	//パスを生成する時に使う値
 	int PassNum = 1; //1からスタート
+
 	//カードを使い回す
 	public List<CardImageScript> CardPool;
 	//[Pass][SummonOrDiscard]
@@ -146,6 +147,7 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 	//引っ張り
 	public PunBattle punBattle;
 	public Image WeatherImage;
+	public Image BG;
 	public CardImageScript DetailImage;
 	public List<CardImageScript> SelectWindowCardsImage;
 	public List<Text> SelectWindowArraws;
@@ -160,6 +162,7 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 	public GameObject SummonButton;
 	public GameObject DiscardButton;
 	public GameObject SelectButton;
+	public Transform InitiativeObj;
 	public List<Image> FlashingImages;
 	public GameObject SelectImage;
 	public GameObject SelectWindow;
@@ -169,6 +172,8 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 	public float PoolCardScale = 0.15f;
 	//ウェイト
 	public float WaitTime = 0.5f;
+	public List<float> InitiativeYPos;
+
 	public enum TargetParam {
 		ID,
 		ATR,
@@ -277,7 +282,12 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 
 	#region 開始処理
 	public void BattleStartOffline (int[] _LPs,int[] _SPs,List<CardParam> _PDeck,List<CardParam> _EDeck) {
+		//CPU対戦
+		nowNetwork = NowNetwork.CPU;
+		gameMode = GameMode.CPU;
+
 		BattleStart ();//共通設定
+
 		DefaultLPs = new int[2];
 		DefaultLPs[0] =  _LPs[0];
 		DefaultLPs[1] = _LPs[1];
@@ -303,21 +313,22 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		//SP回復
 		SEPlay(0);
 
-		//CPU対戦
-		nowNetwork = NowNetwork.CPU;
-		gameMode = GameMode.CPU;
 
 		//テストƒ
 		seq = Sequence();
 		StartCoroutine (seq);
 	}
 	public void BattleStartOnline (int[] _LPs,int[] _SPs,List<CardParam> _PDeck,List<CardParam> _EDeck,string e_name,int _initiative,int _seed) {
+		nowNetwork = NowNetwork.PVP_CONNECTED;
+		gameMode = GameMode.RATE;
+
 		BattleStart ();//共通設定
+
 		DefaultLPs = new int[2];
 		DefaultLPs[0] =  _LPs[0];
 		DefaultLPs[1] = _LPs[1];
-		LPs = _LPs;
-		SPs = _SPs;
+		LPs = new int[]{ _LPs[0],_LPs[1]};
+		SPs = new int[]{ _SPs[0],_SPs[1]};
 
 		Initiative = _initiative;
 		PlayerDeck = _PDeck;
@@ -337,8 +348,6 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 
 		//SP回復
 		SEPlay(0);
-		nowNetwork = NowNetwork.PVP_CONNECTED;
-		gameMode = GameMode.RATE;
 		OnlineManager.Instance.SendDeck(PlayerDeck);
 
 		//シード値
@@ -377,6 +386,12 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		NowTurn = 0;
 		PassNum = 1;
 		WaitTime = DataManager.Instance.BattleWait [DataManager.Instance.BattleSpeed];
+
+		if (gameMode == GameMode.CPU) {
+			BG.sprite = DataManager.Instance.BGs [0];
+		} else {
+			BG.sprite = DataManager.Instance.BGs [1];
+		}
 		RemoveAllSelectEffect ();
 		for (int i = 0; i < CardPool.Count; i++ ){
 			CardPool [i].gameObject.SetActive (false);
@@ -397,6 +412,9 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 	}
 	IEnumerator StartPhase () {
 		//スタートフェーズ
+		//Initiativeの移動
+		InitiativeObj.DOLocalMoveY(InitiativeYPos[Initiative],0.3f);
+
 		NowPhase = Phase._0_START;
 		//ImageRefresh ();の為に1fまつ
 		yield return null;
@@ -501,14 +519,20 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		}
 
 		//スキル発動
+		List<int> Passes = new List<int> ();
 		for (int i = 0; i < GetUsers().Length; i++ ){
 			int user = GetUsers () [i];
 			if (ExistCreature (user)) {
-				CardParam cpx = GetCreature (user);
-				yield return StartCoroutine (UseTimingSkill(cpx,"s"));
+				Passes.Add (GetCreature (user).Pass);
 			}
 		}
-
+		for (int i = 0; i < Passes.Count; i++ ){
+			CardParam cpx = GetCard(Passes[i]);
+			if (GetPos (Passes [i]) [0] != -1) {
+				continue;
+			}
+			yield return StartCoroutine (UseTimingSkill(cpx,"s"));
+		}
 
 
 		CardParam a = GetCreature(FirstUser);
@@ -604,11 +628,15 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		//フェーズ
 		NowPhase = Phase._5_END;
 
+		//ターンエンド時
+		yield return StartCoroutine( CheckCommonSkill(Timing.TURN_END));
+
 		//自然消滅
 		if(ExistCreature(0) || ExistCreature(1))
 			SEPlay(6);
-		S_Used (a.Pass);
-		S_Used (b.Pass);
+
+		S_Used( GetCreature (FirstUser).Pass);
+		S_Used( GetCreature (SecondUser).Pass);
 
 		//状態異常
 		for (int i = 0; i < 2; i++ ){
@@ -1756,7 +1784,6 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		if (_word.Contains ("break")) {
 			List<CardParam> lcp = new List<CardParam> ();
 			lcp.AddRange (_lastObj as List<CardParam>);
-
 			yield return StartCoroutine (S_RemoveCard (lcp,TargetField.BREAK,_cp.Pass));
 			ReturnObj = ((List<CardParam>)_lastObj);
 		}
@@ -1768,7 +1795,15 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 			ReturnObj = ((List<CardParam>)_lastObj);
 		}
 
-		if (_word.Contains ("toHand")) {
+		if (_word.Contains ("toHand(")) {
+			List<CardParam> lcp = new List<CardParam> ();
+			lcp.AddRange (_lastObj as List<CardParam>);
+
+
+			yield return StartCoroutine (S_RemoveCard (lcp,TargetField.BOUNCE,_cp.Pass,(int)_InRound));
+
+			ReturnObj = ((List<CardParam>)_lastObj);
+		} else if (_word.Contains ("toHand")) {
 			List<CardParam> lcp = new List<CardParam> ();
 			lcp.AddRange (_lastObj as List<CardParam>);
 
@@ -2501,19 +2536,19 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 				DefaultPoint = cp.Power;
 
 			//計算方法を設定
-
+			int point = _Point;
 			if (_calType == CalType.MUL)
-				_Point = DefaultPoint * (_Point -1);
+				point = DefaultPoint * (point -1);
 			if (_calType == CalType.DIVIDE)
-				_Point =  ( DefaultPoint / _Point)- DefaultPoint;
+				point =  ( DefaultPoint / point)- DefaultPoint;
 			if (_calType == CalType.SET)
-				_Point = _Point - DefaultPoint;
+				point = point - DefaultPoint;
 			
 			//特殊能力チェック
 			Dictionary<string, object> objs = new Dictionary<string, object>();
 			objs.Add ("targetCard",new List<CardParam>{cp});
 			objs.Add ("targetParam", _TargetParam.ToString ());
-			objs.Add ("point", _Point);
+			objs.Add ("point", point);
 			objs.Add ("invoker",new List<CardParam>{GetCard( _Invoker)});
 			objs.Add ("active", true);
 
@@ -2522,7 +2557,7 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 			objs = (Dictionary<string, object>)coro.Current;
 
 			cp = ((List<CardParam>)objs ["targetCard"])[0];
-			_Point = (int)objs ["point"];
+			point = (int)objs ["point"];
 
 			if ((bool)objs ["active"] == false)//無効化フラグ
 				continue;
@@ -2531,15 +2566,15 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 			switch (_TargetParam) {
 			case TargetParam.COST:
 				{
-					if (cp.Cost + _Point < 0)
+					if (cp.Cost + point < 0)
 						cp.Cost = 0;
 					else
-						cp.Cost += _Point;
+						cp.Cost += point;
 
-					if (_Point < 0) {
+					if (point < 0) {
 						Effect ("PowerUp", cp.Pass);
 						SEPlay (10);
-					} else if (_Point > 0) {
+					} else if (point > 0) {
 						Effect ("Attack2", cp.Pass);
 						SEPlay (11);
 					}
@@ -2547,15 +2582,15 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 				break;
 			case TargetParam.POWER:
 				{
-					if (cp.Power + _Point < 0)
+					if (cp.Power + point < 0)
 						cp.Power = 0;
 					else
-						cp.Power += _Point;
+						cp.Power += point;
 
-					if (_Point > 0) {
+					if (point > 0) {
 						Effect ("PowerUp", cp.Pass);
 						SEPlay (10);
-					} else if (_Point < 0) {
+					} else if (point < 0) {
 						Effect ("Attack2", cp.Pass);
 						SEPlay (11);
 					}
@@ -2571,7 +2606,7 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 		yield return new WaitForSeconds (WaitTime);
 		yield break;
 	}
-	IEnumerator S_RemoveCard (List<CardParam> _Cards,TargetField _TargetField,int _invoker,bool _wait = true) {
+	IEnumerator S_RemoveCard (List<CardParam> _Cards,TargetField _TargetField,int _invoker,int toTarget = -1) {
 		for (int i = 0; i < _Cards.Count; i++) {
 			//特殊能力チェック
 			CardParam cp = _Cards[i];
@@ -2616,32 +2651,33 @@ public class BattleScript : MonoBehaviour,IRecieveMessage {
 			case TargetField.BOUNCE:
 				{
 					SEPlay (13);
-					ToHand (pass);
+					ToHand (pass,false,toTarget);
 				}
 				break;
 			case TargetField.DECKBOTTOM:
 				{
-					ToDeck (pass);
+					ToDeck (pass,false,toTarget);
 				}
 				break;
 			case TargetField.DECKTOP:
 				{
-					ToDeck (pass, true);
+					ToDeck (pass, true,toTarget);
 				}
 				break;
 			case TargetField.CREATURE:
 				{
 					SEPlay (1);
-					ToCreature (pass,PlayerOrEnemy(pass));
+					if(toTarget == -1)
+						ToCreature (pass,PlayerOrEnemy(pass));
+					else
+						ToCreature (pass,toTarget);
 				}
 				break;
 			}
 		}
 		Refresh ();
 		ImageRefresh ();
-		if (_wait) {
-			yield return new WaitForSeconds (WaitTime);
-		}
+		yield return new WaitForSeconds (WaitTime);
 
 	}
 //	void S_ExchangeCard (int _a,int _b) {

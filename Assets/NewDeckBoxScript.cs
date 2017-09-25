@@ -160,6 +160,11 @@ public class NewDeckBoxScript : MonoBehaviour ,IRecieveMessage,ICardDragHandler,
 		//データ表示 & カードデータ生成
 		boxObjs.Info .text = string.Format("カード総数 {0}  種類 {1}\nデッキ枚数 [<color=#00ff00>{2} / 30</color>]",BoxCount,kindCount,cardCounts);
 
+
+		cardDragScroll.transform.GetChild(0).GetChild(0).GetComponent<ContentSizeFitter> ().horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+		cardDragScroll.transform.GetChild(0).GetChild(0).GetComponent<ContentSizeFitter> ().horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+
 //		Invoke ("UnloadAssets", 0.02f);
 	}
 
@@ -372,10 +377,9 @@ public class NewDeckBoxScript : MonoBehaviour ,IRecieveMessage,ICardDragHandler,
 			DeckTapNotify (_num);
 			SetCard (value == -1 ? false : true);
 		}
-		cardDragScroll.transform.GetChild(0).GetChild(0).GetComponent<ContentSizeFitter> ().horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
-		cardDragScroll.transform.GetChild(0).GetChild(0).GetComponent<ContentSizeFitter> ().horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
 		DataManager.Instance.SEPlay (1);
 	}
+
 	public void OnHorizontal (int value,int _num, int _tag){
 		if(_tag == 0)
 			ArrowKeyNotify (value == -1 ? true : false);

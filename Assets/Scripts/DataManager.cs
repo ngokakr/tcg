@@ -68,6 +68,9 @@ public class DataManager : SingletonMonoBehaviour<DataManager> {
 	public List<AudioClip> SEList;
 	public List<AudioClip> BattleSEList;
 
+	//イメージ
+	public List<Sprite> BGs;
+
 	//カードデータ
 	public XLS_CardParam xls_CardParam;
 	public XLS_Groups xls_Groups;
